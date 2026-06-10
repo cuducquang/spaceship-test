@@ -146,11 +146,11 @@ function memoryStore(): KnowledgeStore {
 /* ------------------------------------------------------------------ */
 
 async function supabaseStore(): Promise<KnowledgeStore | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return null;
+  const { getServerSupabaseConfig } = await import("@/lib/server/supabase-key");
+  const config = getServerSupabaseConfig();
+  if (!config) return null;
   const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(url, key);
+  const supabase = createClient(config.url, config.key);
 
   // probe — if the table doesn't exist, fall back
   const probe = await supabase.from("knowledge_files").select("path").limit(1);

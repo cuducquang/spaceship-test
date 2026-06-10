@@ -124,12 +124,12 @@ function loadLocalDataset(): Dataset {
 }
 
 async function loadSupabaseDataset(): Promise<Dataset | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return null;
+  const { getServerSupabaseConfig } = await import("@/lib/server/supabase-key");
+  const config = getServerSupabaseConfig();
+  if (!config) return null;
   try {
     const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
+    const supabase = createClient(config.url, config.key);
     const pageSize = 1000;
     const rows: RawOrder[] = [];
     for (let fromIdx = 0; ; fromIdx += pageSize) {
