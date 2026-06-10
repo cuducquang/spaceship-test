@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:push": "node scripts/apply-migrations.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
@@ -42,6 +43,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "pg": "^8.21.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5",
