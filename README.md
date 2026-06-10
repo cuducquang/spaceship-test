@@ -52,6 +52,17 @@ The publishable API key cannot run DDL, so creating tables is a one time step:
 
 After this, `/api/health` reports `dataset.source: "supabase"` and the chat history panel shows the `supabase` driver. Chat history is stored entirely server side; if the tables are missing the app still works for analysis, the history panel simply explains that persistence is disabled until the migrations run.
 
+### Deploying on Vercel
+
+The Next.js app lives in the `web` subdirectory, so one project setting is essential:
+
+1. In the Vercel project settings, set **Root Directory** to `web`. Without it the build fails immediately because the repository root has no `package.json`.
+2. Keep the framework preset on Next.js and the Node.js version on 22.x; install and build commands stay default (`npm install`, `next build`).
+3. Add the environment variables for Production and Preview: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`.
+4. Redeploy. The app degrades gracefully if some variables are missing (the dataset falls back to the bundled CSV and knowledge becomes ephemeral), but the agent itself needs `ANTHROPIC_API_KEY` and image generation needs `GEMINI_API_KEY`.
+
+The serverless bundle ships `web/data` through `outputFileTracingIncludes`, so the CSV fallback, the knowledge seeds, and the notebook all work on Vercel without extra configuration.
+
 ## 3. System overview
 
 The expected flow from the brief is implemented literally:

@@ -74,12 +74,60 @@ body {
   height: 100%;
 }
 
-body {
+html {
   background: var(--bg);
+}
+
+body {
+  background: transparent;
   color: var(--ink);
   font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
+}
+
+/* ambient canvas — a layered color wash + dot lattice behind every page.
+   The base fill lives in ::before (body stays transparent) so the
+   negative z-index layers remain visible. */
+@keyframes bgDrift {
+  to {
+    transform: translate3d(2.5%, 2%, 0) scale(1.06);
+  }
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: -22%;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 38% at 10% 4%, rgba(16, 185, 129, 0.3), transparent 62%),
+    radial-gradient(40% 34% at 90% 0%, rgba(14, 165, 233, 0.24), transparent 64%),
+    radial-gradient(34% 30% at 50% 0%, rgba(45, 212, 191, 0.18), transparent 60%),
+    radial-gradient(48% 44% at 90% 96%, rgba(124, 93, 250, 0.2), transparent 62%),
+    radial-gradient(38% 34% at 2% 94%, rgba(245, 158, 11, 0.13), transparent 62%),
+    linear-gradient(180deg, #e6f2ef 0%, #eef3f7 38%, #eaedf8 100%);
+  filter: blur(40px);
+  animation: bgDrift 48s ease-in-out infinite alternate;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(11, 42, 58, 0.13) 1px, transparent 1.2px);
+  background-size: 21px 21px;
+  mask-image: radial-gradient(130% 95% at 50% 0%, #000 30%, transparent 82%);
+  -webkit-mask-image: radial-gradient(130% 95% at 50% 0%, #000 30%, transparent 82%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
 }
 
 ::selection {
@@ -464,7 +512,7 @@ body {
   inset: -18%;
   pointer-events: none;
   filter: blur(56px);
-  opacity: 0.55;
+  opacity: 0.45;
   background:
     radial-gradient(34% 28% at 20% 16%, rgba(20, 184, 166, 0.14), transparent 62%),
     radial-gradient(28% 24% at 80% 10%, rgba(109, 93, 211, 0.12), transparent 62%),
