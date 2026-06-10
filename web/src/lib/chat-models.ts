@@ -53,6 +53,12 @@ export const CHAT_MODELS: ChatModelInfo[] = [
 
 export const DEFAULT_CHAT_MODEL = "claude-opus-4-8";
 
+/** Brand accent per provider, used for dots and chips across the UI. */
+export const PROVIDER_COLORS: Record<ChatProvider, string> = {
+  anthropic: "#d97757",
+  google: "#4e8cff",
+};
+
 export function getChatModel(id: string | undefined | null): ChatModelInfo {
   return CHAT_MODELS.find((m) => m.id === id) ?? CHAT_MODELS[0];
 }

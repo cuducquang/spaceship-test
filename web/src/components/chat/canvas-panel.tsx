@@ -16,10 +16,28 @@ import { cn, timeAgo } from "@/lib/utils";
 import { ForecastBlock } from "./blocks";
 import type { CanvasItem, CanvasKind } from "./canvas-context";
 
-const KIND_META: Record<CanvasKind, { label: string; icon: typeof LineChart; color: string }> = {
-  chart: { label: "Chart", icon: LineChart, color: "text-brand" },
-  forecast: { label: "Forecast", icon: TrendingUp, color: "text-violet" },
-  image: { label: "Image", icon: ImageIcon, color: "text-cyan" },
+const KIND_META: Record<
+  CanvasKind,
+  { label: string; icon: typeof LineChart; color: string; grad: string }
+> = {
+  chart: {
+    label: "Chart",
+    icon: LineChart,
+    color: "text-brand",
+    grad: "linear-gradient(90deg, #0e7c66, #0891b2)",
+  },
+  forecast: {
+    label: "Forecast",
+    icon: TrendingUp,
+    color: "text-violet",
+    grad: "linear-gradient(90deg, #6d5dd3, #0891b2)",
+  },
+  image: {
+    label: "Image",
+    icon: ImageIcon,
+    color: "text-cyan",
+    grad: "linear-gradient(90deg, #0891b2, #6d5dd3)",
+  },
 };
 
 function CanvasBody({ item, large }: { item: CanvasItem; large?: boolean }) {
@@ -80,8 +98,10 @@ export function CanvasPanel({
   return (
     <aside className="flex h-full w-[400px] shrink-0 flex-col border-l border-border bg-bg-2/50">
       {/* header */}
-      <div className="flex items-center gap-2 border-b border-border bg-panel/70 px-3.5 py-2.5 backdrop-blur">
-        <LayoutGrid size={14} className="text-brand" />
+      <div className="flex items-center gap-2 border-b border-border bg-panel/75 px-3.5 py-2.5 backdrop-blur">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-violet to-cyan shadow-sm">
+          <LayoutGrid size={12} className="text-white" />
+        </span>
         <span className="font-display text-[13.5px] font-bold text-ink">Canvas</span>
         <span className="tag !py-0">{items.length}</span>
         <div className="flex-1" />
@@ -133,9 +153,10 @@ export function CanvasPanel({
                 if (el) refs.current.set(item.key, el);
               }}
               className={cn(
-                "card block-enter overflow-hidden transition-shadow",
+                "card block-enter accent-top card-hover overflow-hidden",
                 focusedKey === item.key && "ring-2 ring-brand-2 shadow-[var(--shadow-glow)]",
               )}
+              style={{ "--accent-grad": meta.grad } as React.CSSProperties}
             >
               <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <Icon size={13} className={meta.color} />

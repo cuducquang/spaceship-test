@@ -445,3 +445,302 @@ body {
   font-size: 11px;
   fill: var(--ink-3);
 }
+
+/* ------------------------------------------------------------------ */
+/* agentic motion system                                                */
+/* ------------------------------------------------------------------ */
+
+/* ambient aurora — drop <div class="aurora" /> inside a relative parent */
+@keyframes auroraDrift {
+  0% {
+    transform: translate3d(-4%, -3%, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(4%, 4%, 0) scale(1.12);
+  }
+}
+.aurora {
+  position: absolute;
+  inset: -18%;
+  pointer-events: none;
+  filter: blur(56px);
+  opacity: 0.55;
+  background:
+    radial-gradient(34% 28% at 20% 16%, rgba(20, 184, 166, 0.14), transparent 62%),
+    radial-gradient(28% 24% at 80% 10%, rgba(109, 93, 211, 0.12), transparent 62%),
+    radial-gradient(34% 30% at 62% 88%, rgba(8, 145, 178, 0.1), transparent 62%);
+  animation: auroraDrift 24s ease-in-out infinite alternate;
+}
+
+/* rotating conic gradient border (streaming / running states) */
+@property --spin-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes spinAngle {
+  to {
+    --spin-angle: 360deg;
+  }
+}
+.conic-border {
+  position: relative;
+}
+.conic-border::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--spin-angle),
+    #14b8a6,
+    #0891b2,
+    #6d5dd3,
+    #14b8a6
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: spinAngle 2.8s linear infinite;
+  pointer-events: none;
+}
+
+/* shimmer sweep over text (live thinking) */
+@keyframes shimmerText {
+  to {
+    background-position: -200% 0;
+  }
+}
+.shimmer-text {
+  background: linear-gradient(90deg, var(--ink-3) 30%, var(--violet) 50%, var(--ink-3) 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmerText 1.6s linear infinite;
+}
+
+/* agent pipeline (tool steps as connected nodes) */
+.pipe-row {
+  position: relative;
+  padding-left: 36px;
+}
+.pipe-line {
+  position: absolute;
+  left: 13px;
+  top: 30px;
+  bottom: -10px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--border-2), var(--border));
+}
+.pipe-row:last-child .pipe-line {
+  display: none;
+}
+.pipe-node {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  display: flex;
+  height: 28px;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+  z-index: 1;
+}
+@keyframes nodePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(20, 184, 166, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0);
+  }
+}
+.pipe-node-running {
+  border-color: var(--brand-2);
+  animation: nodePulse 1.5s ease-out infinite;
+}
+.pipe-node-done {
+  border-color: rgba(5, 150, 105, 0.45);
+  background: linear-gradient(180deg, #ffffff, #ecfdf5);
+}
+.pipe-node-error {
+  border-color: rgba(225, 29, 72, 0.5);
+  background: linear-gradient(180deg, #ffffff, #fff1f2);
+}
+
+/* streaming avatar ring */
+.avatar-live {
+  position: relative;
+}
+.avatar-live::before {
+  content: "";
+  position: absolute;
+  inset: -3.5px;
+  border-radius: 12px;
+  padding: 2px;
+  background: conic-gradient(from var(--spin-angle), #34d399, #06b6d4, transparent 65%, #34d399);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: spinAngle 1.4s linear infinite;
+}
+
+/* animated gradient hairline (footer / dividers) */
+@keyframes hairlineSlide {
+  to {
+    background-position: 200% 0;
+  }
+}
+.hairline {
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #14b8a6 25%,
+    #0891b2 50%,
+    #6d5dd3 75%,
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: hairlineSlide 7s linear infinite;
+  opacity: 0.8;
+}
+
+/* staggered entrance for direct children */
+.stagger > * {
+  opacity: 0;
+  animation: fadeUp 0.5s ease forwards;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.07s; }
+.stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger > *:nth-child(4) { animation-delay: 0.17s; }
+.stagger > *:nth-child(5) { animation-delay: 0.22s; }
+.stagger > *:nth-child(6) { animation-delay: 0.27s; }
+.stagger > *:nth-child(7) { animation-delay: 0.32s; }
+.stagger > *:nth-child(8) { animation-delay: 0.37s; }
+.stagger > *:nth-child(9) { animation-delay: 0.42s; }
+
+/* animated stripes for a bar under pressure */
+@keyframes stripeMove {
+  to {
+    background-position: 16px 0;
+  }
+}
+.bar-stripes {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.3) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0.3) 75%,
+    transparent 75%
+  );
+  background-size: 16px 16px;
+  animation: stripeMove 0.8s linear infinite;
+}
+
+/* hero orbit (empty states) */
+@keyframes spinSlow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px dashed rgba(20, 184, 166, 0.35);
+  animation: spinSlow 16s linear infinite;
+}
+.orbit-ring-2 {
+  position: absolute;
+  inset: -16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(109, 93, 211, 0.22);
+  animation: spinSlow 26s linear infinite reverse;
+}
+.orbit-dot {
+  position: absolute;
+  top: -4.5px;
+  left: calc(50% - 4.5px);
+  height: 9px;
+  width: 9px;
+  border-radius: 9999px;
+  box-shadow: 0 0 10px 2px rgba(20, 184, 166, 0.45);
+}
+
+/* terminal pill / card (lab verdicts) */
+.terminal {
+  background: linear-gradient(180deg, #0d1b26, #0b2230);
+  color: #b9d4d6;
+  font-family: var(--font-mono);
+  border: 1px solid rgba(110, 231, 200, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    var(--shadow-soft);
+}
+@keyframes caretBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.caret-blink {
+  animation: caretBlink 1.1s steps(1) infinite;
+}
+
+/* leaderboard bar grow */
+@keyframes barGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.bar-grow {
+  transform-origin: left center;
+  animation: barGrow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* kind accent strip on card tops */
+.accent-top {
+  position: relative;
+  overflow: hidden;
+}
+.accent-top::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-grad, linear-gradient(90deg, #0e7c66, #0891b2));
+}
+
+/* dark chrome (header/footer) helpers */
+.chrome-dark {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px) 0 0 / 26px 26px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px) 0 0 / 26px 26px,
+    linear-gradient(180deg, #0b2230 0%, #0d2737 100%);
+}
+.glow-pill {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.18), rgba(8, 145, 178, 0.16));
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #6ee7c8;
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.18);
+}

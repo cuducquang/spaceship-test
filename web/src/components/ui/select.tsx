@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 export interface SelectOption {
   value: string;
-  label: string;
+  label: React.ReactNode;
   hint?: string;
 }
 

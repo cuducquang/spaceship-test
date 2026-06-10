@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Image as ImageIcon,
+  LineChart,
   Loader2,
   NotebookPen,
   Search,
@@ -18,14 +19,20 @@ import { cn } from "@/lib/utils";
 import { PayloadBlock } from "./blocks";
 import { HumanInput } from "./human-input";
 
-const TOOL_META: Record<string, { label: string; icon: typeof Wrench }> = {
-  query_orders: { label: "Querying orders", icon: Search },
-  forecast_demand: { label: "Forecasting demand", icon: TrendingUp },
-  create_chart: { label: "Building chart", icon: TrendingUp },
-  generate_image: { label: "Generating image", icon: ImageIcon },
-  knowledge_list: { label: "Listing knowledge", icon: NotebookPen },
-  knowledge_read: { label: "Reading knowledge", icon: NotebookPen },
-  knowledge_write: { label: "Writing knowledge", icon: NotebookPen },
+/**
+ * The agent's work rendered as a living pipeline: each reasoning phase and
+ * tool call is a node on a connected rail. Running nodes pulse, completed
+ * nodes settle green — the loop is visible, not implied.
+ */
+
+const TOOL_META: Record<string, { run: string; done: string; icon: typeof Wrench }> = {
+  query_orders: { run: "Querying orders", done: "Queried orders", icon: Search },
+  forecast_demand: { run: "Forecasting demand", done: "Forecast ready", icon: TrendingUp },
+  create_chart: { run: "Building chart", done: "Chart built", icon: LineChart },
+  generate_image: { run: "Generating image", done: "Image generated", icon: ImageIcon },
+  knowledge_list: { run: "Listing knowledge", done: "Knowledge listed", icon: NotebookPen },
+  knowledge_read: { run: "Reading knowledge", done: "Knowledge read", icon: NotebookPen },
+  knowledge_write: { run: "Writing knowledge", done: "Knowledge saved", icon: NotebookPen },
 };
 
 export interface ToolStepData {
@@ -40,47 +47,52 @@ export interface ToolStepData {
 
 export function ToolStep({ step }: { step: ToolStepData }) {
   const [expanded, setExpanded] = useState(false);
-  const meta = TOOL_META[step.name] ?? { label: step.name, icon: Wrench };
+  const meta = TOOL_META[step.name] ?? { run: step.name, done: step.name, icon: Wrench };
   const Icon = meta.icon;
 
-  const doneLabel = meta.label
-    .replace(/^Querying/, "Queried")
-    .replace(/^Forecasting/, "Forecast")
-    .replace(/^Building/, "Built")
-    .replace(/^Generating/, "Generated")
-    .replace(/^Listing/, "Listed")
-    .replace(/^Reading/, "Read")
-    .replace(/^Writing/, "Wrote");
-
   return (
-    <div className="my-1.5">
-      <div
+    <div className="pipe-row pb-3">
+      <span className="pipe-line" />
+      <span
         className={cn(
-          "overflow-hidden rounded-xl border border-border bg-panel",
-          step.status === "running" && "tool-stripe",
-          step.status === "done" && "tool-stripe-done",
-          step.status === "error" && "tool-stripe-error",
+          "pipe-node",
+          step.status === "running" && "pipe-node-running",
+          step.status === "done" && "pipe-node-done",
+          step.status === "error" && "pipe-node-error",
         )}
       >
+        {step.status === "running" ? (
+          <Loader2 size={13} className="animate-spin text-brand-2" />
+        ) : step.status === "error" ? (
+          <X size={13} className="text-bad" />
+        ) : (
+          <Icon size={13} className="text-good" />
+        )}
+      </span>
+
+      <div className="overflow-hidden rounded-xl border border-border bg-panel/85 shadow-sm backdrop-blur-[2px]">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-2.5 px-3 py-2 text-left"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left"
         >
-          {step.status === "running" ? (
-            <Loader2 size={13} className="shrink-0 animate-spin text-brand-2" />
-          ) : step.status === "done" ? (
-            <Check size={13} className="shrink-0 text-good" />
-          ) : (
-            <X size={13} className="shrink-0 text-bad" />
-          )}
-          <Icon size={13} className="shrink-0 text-ink-3" />
-          <span className="text-[12.5px] font-semibold text-ink-2">
-            {step.status === "running" ? meta.label : doneLabel}
+          <span
+            className={cn(
+              "text-[12.5px] font-semibold",
+              step.status === "running" ? "shimmer-text" : "text-ink",
+            )}
+          >
+            {step.status === "running" ? meta.run : meta.done}
           </span>
           {step.summary && step.status !== "running" && (
-            <span className="truncate text-[11.5px] text-ink-3">· {step.summary}</span>
+            <span className="min-w-0 truncate text-[11.5px] text-ink-3">· {step.summary}</span>
+          )}
+          {step.status === "done" && (
+            <Check size={11} strokeWidth={3} className="shrink-0 text-good/70" />
           )}
           <span className="flex-1" />
+          <span className="rounded-md bg-panel-2 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-wide text-ink-3">
+            {step.name}
+          </span>
           <ChevronDown
             size={13}
             className={cn("shrink-0 text-ink-3 transition-transform", expanded && "rotate-180")}
@@ -107,33 +119,55 @@ export function ToolStep({ step }: { step: ToolStepData }) {
 export function ThinkingSection({ text, done }: { text: string; done: boolean }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="my-1.5 overflow-hidden rounded-xl border border-violet/20 bg-violet/5">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
-      >
-        <Brain size={13} className="shrink-0 text-violet" />
-        <span className="text-[12px] font-semibold text-violet">
-          {done ? "Reasoning" : "Thinking"}
-        </span>
-        {!done && (
-          <span className="flex items-center gap-0.5">
-            <span className="typing-dot h-1 w-1 rounded-full bg-violet" />
-            <span className="typing-dot h-1 w-1 rounded-full bg-violet" />
-            <span className="typing-dot h-1 w-1 rounded-full bg-violet" />
-          </span>
+    <div className="pipe-row pb-3">
+      <span className="pipe-line" />
+      <span
+        className={cn(
+          "pipe-node",
+          !done && "pipe-node-running !border-violet/50",
         )}
-        <span className="flex-1" />
-        <ChevronDown
-          size={13}
-          className={cn("shrink-0 text-violet/60 transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <p className="whitespace-pre-wrap border-t border-violet/15 px-3 py-2.5 text-[12px] leading-relaxed text-ink-2">
-          {text}
-        </p>
-      )}
+        style={!done ? { animationName: "nodePulse" } : undefined}
+      >
+        <Brain size={13} className="text-violet" />
+      </span>
+
+      <div className="overflow-hidden rounded-xl border border-violet/20 bg-violet/[0.04] backdrop-blur-[2px]">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        >
+          <span
+            className={cn(
+              "text-[12.5px] font-semibold",
+              done ? "text-violet" : "shimmer-text",
+            )}
+          >
+            {done ? "Reasoned" : "Thinking"}
+          </span>
+          {!done && (
+            <span className="flex items-center gap-0.5">
+              <span className="typing-dot h-1 w-1 rounded-full bg-violet" />
+              <span className="typing-dot h-1 w-1 rounded-full bg-violet" />
+              <span className="typing-dot h-1 w-1 rounded-full bg-violet" />
+            </span>
+          )}
+          {done && (
+            <span className="text-[10.5px] text-ink-3">
+              {Math.max(1, Math.round(text.length / 5))} words of internal reasoning
+            </span>
+          )}
+          <span className="flex-1" />
+          <ChevronDown
+            size={13}
+            className={cn("shrink-0 text-violet/60 transition-transform", open && "rotate-180")}
+          />
+        </button>
+        {open && (
+          <p className="whitespace-pre-wrap border-t border-violet/15 px-3 py-2.5 text-[12px] leading-relaxed text-ink-2">
+            {text}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

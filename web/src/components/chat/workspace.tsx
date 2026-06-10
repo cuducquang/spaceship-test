@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowDownToLine,
   ArrowUp,
+  ArrowUpFromLine,
+  ChevronRight,
   CircleStop,
   Clock3,
   Image as ImageIcon,
@@ -15,6 +18,7 @@ import {
   Sparkles,
   TrendingUp,
   Truck,
+  Workflow,
   Zap,
 } from "lucide-react";
 import type { AgentEvent, ToolUiPayload } from "@/lib/agent/events";
@@ -101,6 +105,34 @@ function fromStoredSegments(stored: StoredSegment[], msgIdx: number): Segment[] 
       },
     };
   });
+}
+
+type SegmentBlock =
+  | { kind: "text"; text: string }
+  | { kind: "pipeline"; items: Extract<Segment, { kind: "thinking" | "tool" }>[] };
+
+/** Group consecutive thinking/tool segments so they render as one connected pipeline. */
+function groupSegments(segments: Segment[]): SegmentBlock[] {
+  const blocks: SegmentBlock[] = [];
+  for (const seg of segments) {
+    if (seg.kind === "text") {
+      blocks.push({ kind: "text", text: seg.text });
+    } else {
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "pipeline") last.items.push(seg);
+      else blocks.push({ kind: "pipeline", items: [seg] });
+    }
+  }
+  return blocks;
+}
+
+function UsageChip({ icon: Icon, text }: { icon: typeof Workflow; text: string }) {
+  return (
+    <span className="flex items-center gap-1 rounded-md border border-border bg-panel-2/70 px-1.5 py-0.5 font-mono text-[10px] text-ink-3">
+      <Icon size={10} />
+      {text}
+    </span>
+  );
 }
 
 interface Meta {
@@ -549,9 +581,10 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
         )}
 
         {/* center column */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="aurora" aria-hidden />
           {/* toolbar */}
-          <div className="flex items-center gap-2.5 border-b border-border bg-panel/70 px-3.5 py-2 backdrop-blur">
+          <div className="flex items-center gap-2.5 border-b border-border bg-panel/75 px-3.5 py-2 backdrop-blur-md">
             {!historyOpen && (
               <button
                 onClick={() => setHistoryOpen(true)}
@@ -561,13 +594,22 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
                 <PanelLeftOpen size={16} />
               </button>
             )}
+            <span
+              className={cn(
+                "h-2 w-2 shrink-0 rounded-full transition-colors",
+                streaming
+                  ? "pulse-dot bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)]"
+                  : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]",
+              )}
+            />
             <div className="min-w-0">
               <div className="truncate font-display text-[13.5px] font-bold text-ink">
                 {meta.title}
               </div>
               <div className="text-[10px] text-ink-3">
-                {meta.summary ? "compacted session · " : ""}
-                every number computed by validated tools
+                {streaming
+                  ? "agent running — interpreting, selecting tools, computing"
+                  : `${meta.summary ? "compacted session · " : ""}every number computed by validated tools`}
               </div>
             </div>
             <div className="flex-1" />
@@ -614,37 +656,59 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
                         </div>
                       </div>
                     ) : (
-                      <div className="fade-up mb-6">
-                        <div className="mb-1.5 flex items-center gap-2">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-sm">
-                            <Rocket size={12} className="text-navy" />
+                      <div className="fade-up mb-7">
+                        <div className="mb-2.5 flex items-center gap-2.5">
+                          <div
+                            className={cn(
+                              "relative flex h-7 w-7 items-center justify-center rounded-[10px] bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-md shadow-emerald-500/25",
+                              item.status === "streaming" && "avatar-live",
+                            )}
+                          >
+                            <Rocket size={13} className="text-navy" />
                           </div>
-                          <span className="text-[11.5px] font-bold uppercase tracking-wider text-ink-3">
-                            Atlas
-                          </span>
-                          {item.status === "streaming" && (
-                            <span className="flex items-center gap-0.5">
-                              <span className="typing-dot h-1 w-1 rounded-full bg-brand-2" />
-                              <span className="typing-dot h-1 w-1 rounded-full bg-brand-2" />
-                              <span className="typing-dot h-1 w-1 rounded-full bg-brand-2" />
+                          <div className="leading-none">
+                            <span className="text-[11.5px] font-bold uppercase tracking-wider text-ink-2">
+                              Atlas
                             </span>
-                          )}
-                        </div>
-                        <div className="pl-8">
-                          {item.segments.map((seg, i) =>
-                            seg.kind === "text" ? (
-                              <Markdown key={i}>{seg.text}</Markdown>
-                            ) : seg.kind === "thinking" ? (
-                              <ThinkingSection key={i} text={seg.text} done={seg.done} />
+                            {item.status === "streaming" ? (
+                              <div className="shimmer-text mt-0.5 text-[10px] font-semibold">
+                                interpreting → selecting tools → computing
+                              </div>
                             ) : (
-                              <ToolStep key={seg.step.id} step={seg.step} />
+                              <div className="mt-0.5 text-[10px] text-ink-3">AI analyst</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="pl-9">
+                          {groupSegments(item.segments).map((block, bi) =>
+                            block.kind === "text" ? (
+                              <Markdown key={bi}>{block.text}</Markdown>
+                            ) : (
+                              <div key={bi} className="my-2.5">
+                                {block.items.map((seg, si) =>
+                                  seg.kind === "thinking" ? (
+                                    <ThinkingSection key={si} text={seg.text} done={seg.done} />
+                                  ) : (
+                                    <ToolStep key={seg.step.id} step={seg.step} />
+                                  ),
+                                )}
+                              </div>
                             ),
                           )}
                           {item.usage && item.status === "done" && (
-                            <div className="mt-1 text-right text-[10px] text-ink-3">
-                              {(item.usage.input_tokens / 1000).toFixed(1)}k in ·{" "}
-                              {(item.usage.output_tokens / 1000).toFixed(1)}k out ·{" "}
-                              {item.usage.iterations} step{item.usage.iterations === 1 ? "" : "s"}
+                            <div className="mt-2 flex justify-end gap-1.5">
+                              <UsageChip
+                                icon={ArrowDownToLine}
+                                text={`${(item.usage.input_tokens / 1000).toFixed(1)}k in`}
+                              />
+                              <UsageChip
+                                icon={ArrowUpFromLine}
+                                text={`${(item.usage.output_tokens / 1000).toFixed(1)}k out`}
+                              />
+                              <UsageChip
+                                icon={Workflow}
+                                text={`${item.usage.iterations} ${item.usage.iterations === 1 ? "step" : "steps"}`}
+                              />
                             </div>
                           )}
                         </div>
@@ -662,7 +726,12 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
           {/* composer */}
           <div className="border-t border-border bg-bg/80 px-5 py-3.5 backdrop-blur">
             <div className="mx-auto max-w-[820px]">
-              <div className={cn("composer flex items-end gap-2 p-2 pl-4", streaming && "composer-busy")}>
+              <div
+                className={cn(
+                  "composer flex items-end gap-2 p-2 pl-4",
+                  streaming && "composer-busy conic-border",
+                )}
+              >
                 <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -743,35 +812,77 @@ function CompactedDivider({ summary }: { summary: string | null }) {
   );
 }
 
+const SUGGESTION_GRADS = [
+  "from-emerald-400 to-teal-500",
+  "from-cyan-400 to-sky-500",
+  "from-violet-400 to-purple-500",
+  "from-amber-400 to-orange-500",
+  "from-rose-400 to-pink-500",
+  "from-blue-400 to-indigo-500",
+];
+
 function EmptyState({ onPick }: { onPick: (q: string) => void }) {
   return (
-    <div className="flex flex-col items-center pt-12 text-center">
-      <div className="glass mb-5 flex h-16 w-16 items-center justify-center rounded-2xl shadow-lg">
-        <Sparkles size={26} className="text-brand" />
+    <div className="flex flex-col items-center pt-10 text-center">
+      {/* orbiting agent mark */}
+      <div className="relative mb-8 h-24 w-24">
+        <span className="orbit-ring">
+          <span className="orbit-dot bg-brand-2" />
+        </span>
+        <span className="orbit-ring-2">
+          <span
+            className="orbit-dot"
+            style={{ background: "#6d5dd3", boxShadow: "0 0 10px 2px rgba(109,93,211,0.45)" }}
+          />
+        </span>
+        <div className="absolute inset-[15px] flex items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-[0_10px_36px_rgba(20,184,166,0.4)]">
+          <Rocket size={26} className="text-navy" />
+        </div>
       </div>
-      <h2 className="font-display text-[23px] font-bold tracking-tight text-ink">
+
+      <h2 className="font-display text-[26px] font-bold leading-tight tracking-tight text-ink">
         Ask your <span className="gradient-text">logistics data</span> anything
       </h2>
-      <p className="mt-2 max-w-md text-[13px] leading-relaxed text-ink-3">
-        Pick a model, ask in plain language — the agent selects validated analytical tools,
-        streams its steps, and sends every visualization to the canvas on the right.
+      <p className="mt-2.5 max-w-md text-[13px] leading-relaxed text-ink-3">
+        Pick a model, ask in plain language — the agent interprets, selects validated
+        analytical tools, computes, and sends every visualization to the live canvas.
       </p>
-      <div className="mt-7 grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {SUGGESTIONS.map((s) => (
+
+      <div className="mt-3 flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">
+        <span className="rounded-full bg-panel-2 px-2 py-0.5">interpret</span>
+        <ChevronRight size={10} />
+        <span className="rounded-full bg-panel-2 px-2 py-0.5">route to tools</span>
+        <ChevronRight size={10} />
+        <span className="rounded-full bg-panel-2 px-2 py-0.5">compute</span>
+        <ChevronRight size={10} />
+        <span className="rounded-full bg-brand-soft px-2 py-0.5 text-brand">explain</span>
+      </div>
+
+      <div className="stagger mt-8 grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {SUGGESTIONS.map((s, i) => (
           <button
             key={s.title}
             onClick={() => onPick(s.q)}
-            className="card card-hover flex items-start gap-3 p-3.5 text-left"
+            className="card group relative flex items-start gap-3 overflow-hidden p-3.5 pr-8 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-2/50 hover:shadow-[var(--shadow-lift)]"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft">
-              <s.icon size={15} className="text-brand" />
+            <div
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md",
+                SUGGESTION_GRADS[i % SUGGESTION_GRADS.length],
+              )}
+            >
+              <s.icon size={15} />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-[13px] font-semibold text-ink">{s.title}</div>
               <div className="mt-0.5 line-clamp-2 text-[11.5px] leading-relaxed text-ink-3">
                 {s.q}
               </div>
             </div>
+            <ChevronRight
+              size={15}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
+            />
           </button>
         ))}
       </div>

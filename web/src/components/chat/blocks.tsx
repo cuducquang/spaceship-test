@@ -35,18 +35,84 @@ import { Markdown } from "./markdown";
 /* forecast block                                                       */
 /* ------------------------------------------------------------------ */
 
-function monthShort(m: string): string {
+export function monthShort(m: string): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${months[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
 }
 
-export function ForecastBlock({ result }: { result: ForecastResult }) {
-  const [showMethod, setShowMethod] = useState(false);
+/** History + forecast + uncertainty band — shared by the chat block, the canvas and the Forecast page. */
+export function ForecastSeriesChart({
+  result,
+  height = 260,
+}: {
+  result: ForecastResult;
+  height?: number;
+}) {
   const data = result.series.map((p) => ({
     ...p,
     band: p.lower !== null && p.upper !== null ? [p.lower, p.upper] : undefined,
     label: monthShort(p.month),
   }));
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={data} margin={{ left: 4, right: 16 }}>
+        <defs>
+          <linearGradient id="fc-band" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6d5dd3" stopOpacity={0.22} />
+            <stop offset="100%" stopColor="#6d5dd3" stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 6" />
+        <XAxis dataKey="label" axisLine={false} tickLine={false} minTickGap={14} />
+        <YAxis axisLine={false} tickLine={false} width={46} />
+        <Tooltip
+          contentStyle={{
+            borderRadius: 12,
+            border: "1px solid var(--border)",
+            fontSize: 12,
+            boxShadow: "var(--shadow-lift)",
+          }}
+        />
+        <Legend
+          iconType="circle"
+          iconSize={8}
+          formatter={(v) => <span className="text-xs text-ink-2">{String(v)}</span>}
+        />
+        <Area
+          dataKey="band"
+          name="80% interval"
+          stroke="none"
+          fill="url(#fc-band)"
+          connectNulls
+          isAnimationActive={false}
+          legendType="none"
+        />
+        <Line
+          dataKey="actual"
+          name="Actual"
+          type="monotone"
+          stroke="#0e7c66"
+          strokeWidth={2.4}
+          dot={{ r: 2.5, strokeWidth: 0, fill: "#0e7c66" }}
+          connectNulls={false}
+        />
+        <Line
+          dataKey="forecast"
+          name="Forecast"
+          type="monotone"
+          stroke="#6d5dd3"
+          strokeWidth={2.4}
+          strokeDasharray="6 4"
+          dot={{ r: 3, strokeWidth: 0, fill: "#6d5dd3" }}
+          connectNulls
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function ForecastBlock({ result }: { result: ForecastResult }) {
+  const [showMethod, setShowMethod] = useState(false);
   const metricLabel =
     result.metric === "quantity" ? "units" : result.metric === "revenue" ? "USD" : "orders";
 
@@ -70,60 +136,7 @@ export function ForecastBlock({ result }: { result: ForecastResult }) {
       </div>
 
       <div className="px-2 pt-3">
-        <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={data} margin={{ left: 4, right: 16 }}>
-            <defs>
-              <linearGradient id="fc-band" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6d5dd3" stopOpacity={0.22} />
-                <stop offset="100%" stopColor="#6d5dd3" stopOpacity={0.05} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 6" />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} minTickGap={14} />
-            <YAxis axisLine={false} tickLine={false} width={46} />
-            <Tooltip
-              contentStyle={{
-                borderRadius: 12,
-                border: "1px solid var(--border)",
-                fontSize: 12,
-                boxShadow: "var(--shadow-lift)",
-              }}
-            />
-            <Legend
-              iconType="circle"
-              iconSize={8}
-              formatter={(v) => <span className="text-xs text-ink-2">{String(v)}</span>}
-            />
-            <Area
-              dataKey="band"
-              name="80% interval"
-              stroke="none"
-              fill="url(#fc-band)"
-              connectNulls
-              isAnimationActive={false}
-              legendType="none"
-            />
-            <Line
-              dataKey="actual"
-              name="Actual"
-              type="monotone"
-              stroke="#0e7c66"
-              strokeWidth={2.4}
-              dot={{ r: 2.5, strokeWidth: 0, fill: "#0e7c66" }}
-              connectNulls={false}
-            />
-            <Line
-              dataKey="forecast"
-              name="Forecast"
-              type="monotone"
-              stroke="#6d5dd3"
-              strokeWidth={2.4}
-              strokeDasharray="6 4"
-              dot={{ r: 3, strokeWidth: 0, fill: "#6d5dd3" }}
-              connectNulls
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <ForecastSeriesChart result={result} height={260} />
       </div>
 
       {/* inventory recommendation */}

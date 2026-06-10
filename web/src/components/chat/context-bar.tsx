@@ -63,10 +63,14 @@ export function ContextBar({
               {fmtK(lastContextTokens)} / {fmtK(COMPACT_AT)}
             </span>
           </span>
-          <span className="h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
+          <span className="h-2 w-full overflow-hidden rounded-full border border-border/70 bg-panel-2">
             <span
-              className={cn("block h-full rounded-full transition-all duration-700", tone)}
-              style={{ width: `${Math.max(pct, 2)}%` }}
+              className={cn(
+                "block h-full rounded-full transition-all duration-700",
+                tone,
+                pct >= 80 && "bar-stripes",
+              )}
+              style={{ width: `${Math.max(pct, 3)}%` }}
             />
           </span>
         </button>
