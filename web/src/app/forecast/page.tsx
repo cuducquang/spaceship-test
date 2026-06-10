@@ -142,8 +142,10 @@ export default function ForecastPage() {
   );
 
   return (
-    <div className="relative h-full overflow-y-auto">
-      <div className="aurora" aria-hidden />
+    <div className="relative h-full overflow-y-auto overflow-x-hidden">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="aurora" />
+      </div>
       <div className="mx-auto max-w-[1180px] px-6 py-6 pb-16">
         <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>

@@ -10,8 +10,10 @@ export default function LabPage() {
   const [tab, setTab] = useState<"train" | "notebook">("train");
 
   return (
-    <div className="relative h-full overflow-y-auto">
-      <div className="aurora" aria-hidden />
+    <div className="relative h-full overflow-y-auto overflow-x-hidden">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="aurora" />
+      </div>
       <div className="mx-auto max-w-[980px] px-6 py-6 pb-16">
         <header className="mb-5">
           <div className="flex flex-wrap items-center gap-3">
