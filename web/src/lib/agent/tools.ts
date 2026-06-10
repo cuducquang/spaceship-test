@@ -8,6 +8,11 @@ import {
   type ResultColumn,
 } from "@/lib/analytics/specs";
 import type { Dataset } from "@/lib/data/types";
+import {
+  runBenchmark,
+  type FeatureSpec,
+  type ModelKind,
+} from "@/lib/ml/engine";
 import type { KnowledgeStore } from "./knowledge-store";
 import type { ToolUiPayload } from "./events";
 import { generateImage } from "./gemini";
@@ -27,6 +32,8 @@ export interface ToolContext {
   /** Results produced earlier in this turn, addressable by result_id. */
   results: Map<string, StoredResult>;
   knowledge: KnowledgeStore;
+  /** Gemini model selected for image generation (footer setting). */
+  imageModel?: string;
 }
 
 export interface ToolOutcome {
@@ -275,6 +282,119 @@ const createChartTool: AgentTool = {
 };
 
 /* ------------------------------------------------------------------ */
+/* ML benchmark (live classifier evaluation)                            */
+/* ------------------------------------------------------------------ */
+
+const ML_PRESET_FEATURES: FeatureSpec[] = [
+  { name: "carrier", kind: "categorical" },
+  { name: "region", kind: "categorical" },
+  { name: "warehouse", kind: "categorical" },
+  { name: "product_category", kind: "categorical" },
+  { name: "order_month", kind: "categorical" },
+  { name: "quantity", kind: "numeric" },
+  { name: "unit_price_usd", kind: "numeric" },
+  { name: "is_promo", kind: "categorical" },
+];
+
+const evaluateMlSchema = z.strictObject({
+  models: z
+    .array(z.enum(["dummy", "logreg", "tree", "knn"]))
+    .min(1)
+    .max(4)
+    .default(["dummy", "logreg", "tree", "knn"])
+    .describe(
+      "Classifiers to benchmark: dummy = class-prior baseline, logreg = logistic regression, tree = CART decision tree, knn = k-nearest neighbors. Default: all four.",
+    ),
+  folds: z
+    .number()
+    .int()
+    .min(3)
+    .max(10)
+    .default(5)
+    .describe("Stratified cross-validation folds (default 5)."),
+});
+
+const evaluateMlTool: AgentTool = {
+  name: "evaluate_ml_models",
+  description:
+    "Train and benchmark late-delivery classifiers LIVE on the completed orders (baseline prior, logistic regression, CART decision tree, k-nearest neighbors) using leakage-safe stratified cross-validation with order-time features only. Returns ROC-AUC, accuracy and F1 per model plus an honest deployability verdict, and renders a comparison chart. Call when the user asks whether machine learning can predict late deliveries, how the classifiers perform, or to rerun the model benchmark. The pre-registered offline study found NO deployable signal (logistic regression AUC 0.465, permutation p = 0.68) — use this tool to demonstrate that with live numbers; NEVER fabricate per-order risk predictions from these models.",
+  schema: evaluateMlSchema,
+  async execute(input, ctx) {
+    const { models, folds } = evaluateMlSchema.parse(input);
+    const rows = ctx.dataset.orders
+      .filter((o) => o.is_completed)
+      .map((o) => ({
+        carrier: o.carrier,
+        region: o.region,
+        warehouse: o.warehouse,
+        product_category: o.product_category,
+        order_month: o.order_month.slice(5, 7),
+        quantity: o.quantity,
+        unit_price_usd: o.unit_price_usd,
+        is_promo: o.is_promo ? "promo" : "standard",
+        outcome: o.is_late ? "late" : "on_time",
+      }));
+    const bench = runBenchmark({
+      rows,
+      target: "outcome",
+      positive: "late",
+      features: ML_PRESET_FEATURES,
+      models: models as ModelKind[],
+      folds,
+    });
+    const ranked = [...bench.results].sort((a, b) => b.auc_mean - a.auc_mean);
+    const best = ranked.find((r) => r.model !== "dummy") ?? ranked[0];
+    const r3 = (x: number) => Number(x.toFixed(3));
+    const deployable = best.auc_mean >= 0.65;
+    const chartRows = ranked.map((r) => ({
+      model: r.label,
+      auc: r3(r.auc_mean),
+      f1: r3(r.f1),
+    }));
+    return {
+      modelResult: {
+        n: bench.n,
+        positives: bench.positives,
+        positive_rate: r3(bench.baseline_rate),
+        folds: bench.folds,
+        features: bench.feature_count,
+        encoded_dims: bench.encoded_dims,
+        leaderboard: ranked.map((r) => ({
+          model: r.label,
+          auc_mean: r3(r.auc_mean),
+          auc_std: r3(r.auc_std),
+          accuracy: r3(r.accuracy),
+          f1: r3(r.f1),
+        })),
+        verdict: deployable
+          ? `possible signal — best model ${best.label} reaches CV AUC ${r3(best.auc_mean)}; a permutation test is still required before trusting it`
+          : `no deployable signal — best model ${best.label} reaches CV AUC ${r3(best.auc_mean)} vs the 0.65 bar, consistent with the offline study's pre-registered no-ship decision`,
+        guidance:
+          "AUC near 0.5 means order-time features carry no predictive signal for late delivery. Recommend operational analysis (carrier/region delay rates, root causes) instead of per-order risk scores. A comparison chart is already displayed to the user.",
+      },
+      summary: `${ranked.length} models · ${bench.folds}-fold CV · best ${best.label} AUC ${r3(best.auc_mean)}`,
+      payload: {
+        kind: "chart",
+        chart: {
+          type: "bar",
+          title: "Classifier benchmark — late vs on time",
+          subtitle: `${bench.n} completed orders · ${bench.folds}-fold stratified CV · leakage-safe`,
+          x: "model",
+          series: ["auc", "f1"],
+          value_format: "number",
+          columns: [
+            { key: "model", label: "Model" },
+            { key: "auc", label: "ROC-AUC (CV mean)" },
+            { key: "f1", label: "F1 @0.5" },
+          ],
+          rows: chartRows,
+        },
+      },
+    };
+  },
+};
+
+/* ------------------------------------------------------------------ */
 /* image generation                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -294,9 +414,9 @@ const generateImageTool: AgentTool = {
   description:
     "Generate a high-quality illustration with Gemini (e.g. a report cover, an executive-summary hero visual, a concept illustration for a logistics initiative). Call this ONLY when the user asks for an image/visual asset/illustration, or accepts your offer of one — never for data charts (use create_chart). Ground the prompt in real findings from this conversation when relevant.",
   schema: generateImageSchema,
-  async execute(input) {
+  async execute(input, ctx) {
     const { prompt, aspect_ratio } = generateImageSchema.parse(input);
-    const image = await generateImage(prompt, aspect_ratio);
+    const image = await generateImage(prompt, aspect_ratio, ctx.imageModel);
     return {
       modelResult: {
         ok: true,
@@ -348,6 +468,9 @@ const knowledgeReadTool: AgentTool = {
   schema: knowledgeReadSchema,
   async execute(input, ctx) {
     const { path } = knowledgeReadSchema.parse(input);
+    if (path.startsWith("_")) {
+      throw new Error(`Paths starting with "_" are reserved for app internals.`);
+    }
     const content = await ctx.knowledge.read(path);
     if (content === null) {
       const files = await ctx.knowledge.list();
@@ -381,6 +504,9 @@ const knowledgeWriteTool: AgentTool = {
   schema: knowledgeWriteSchema,
   async execute(input, ctx) {
     const { path, content, mode } = knowledgeWriteSchema.parse(input);
+    if (path.startsWith("_")) {
+      throw new Error(`Paths starting with "_" are reserved for app internals.`);
+    }
     await ctx.knowledge.write(path, content, mode);
     return {
       modelResult: { ok: true, path, mode },
@@ -398,6 +524,7 @@ export function buildToolRegistry(): AgentTool[] {
   return [
     queryOrdersTool,
     forecastTool,
+    evaluateMlTool,
     createChartTool,
     generateImageTool,
     knowledgeListTool,

@@ -52,8 +52,10 @@ async function tryGenerate(
 export async function generateImage(
   prompt: string,
   aspectRatio: string = "16:9",
+  modelOverride?: string,
 ): Promise<GeneratedImage> {
-  const preferred = process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image";
+  const preferred =
+    modelOverride || process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image";
   const models = [preferred, ...FALLBACK_MODELS.filter((m) => m !== preferred)];
   let lastError: Error | null = null;
   for (const model of models) {

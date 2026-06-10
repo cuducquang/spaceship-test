@@ -36,8 +36,11 @@ export default function LabPage() {
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-3">
             Train and benchmark late-delivery classifiers right here — on the bundled dataset or
             your own CSV — with leakage-safe cross-validation. Each model fits live, one after
-            another. The Notebook tab is the full offline study, rendered block by block, behind
-            the honest decision NOT to ship a prediction tool to the agent.
+            another. The AI analyst can run this same benchmark in chat (the{" "}
+            <code className="rounded bg-panel-2 px-1 py-0.5 text-[11px]">evaluate_ml_models</code>{" "}
+            tool); what stays unshipped — per the notebook's pre-registered decision — is
+            per-order risk prediction. The Notebook tab is that full offline study, rendered
+            block by block.
           </p>
         </header>
 

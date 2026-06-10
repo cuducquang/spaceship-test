@@ -4,14 +4,14 @@ Spaceship is an analytics workspace for a logistics client. It pairs a tradition
 
 **Live demo:** add your deployment URL here
 
-**Stack:** Next.js 16, TypeScript, Supabase, Claude (Opus 4.8, Opus 4.6, Sonnet 4.6), Gemini (3.1 Pro, 2.5 Pro, 2.5 Flash), Recharts, Tailwind CSS v4
+**Stack:** Next.js 16, TypeScript, Supabase, Claude for the agent (Opus 4.8, Opus 4.6, Sonnet 4.6), Gemini for image generation (3 Pro Image, 3.1 Flash Image, 2.5 Flash Image), Recharts, Tailwind CSS v4
 
 ## What it covers
 
 * **Descriptive analytics.** A dashboard with five KPIs, five interactive charts, and global filters.
 * **Diagnostic analytics.** Natural language questions answered from data, with live agent steps and a visualization canvas.
 * **Predictive and prescriptive analytics.** Backtested demand forecasts plus inventory recommendations at a 95 percent service level.
-* **Multi model agent.** Switch the analyst between Claude and Gemini per conversation; both drivers share the same tools and event protocol.
+* **Model controls in the status bar.** The footer selects the Claude model that powers the agent and the Gemini model that renders images; the choice persists server side and applies everywhere instantly.
 * **Long sessions.** A context usage meter and automatic conversation compaction keep multi turn sessions healthy.
 * **ML Lab.** The research notebook rendered block by block, plus in app model training and benchmarking, including on a CSV you upload.
 
@@ -26,8 +26,8 @@ npm run dev                  # http://localhost:3000
 
 Environment variables:
 
-* `ANTHROPIC_API_KEY` (required): powers the Claude agent drivers and the compaction summarizer.
-* `GEMINI_API_KEY` (required): powers the Gemini agent drivers and the image generation tool.
+* `ANTHROPIC_API_KEY` (required): powers the Claude agent and the compaction summarizer.
+* `GEMINI_API_KEY` (required): powers the image generation tool.
 * `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (required for persistence): the database for orders, knowledge files, and chat history.
 * `ANTHROPIC_MODEL` (optional): default agent model, defaults to `claude-opus-4-8`.
 * `GEMINI_IMAGE_MODEL` (optional): image model, defaults to `gemini-3-pro-image`.
@@ -68,7 +68,7 @@ The expected flow from the brief is implemented literally:
 1. **The AI is a router, never the source of truth.** The model cannot emit SQL and cannot do arithmetic on the data. It emits a `QuerySpec`, `ForecastSpec`, or `ChartSpec`; the engine computes everything. Numbers arrive at the model preformatted, and grouped results include exact totals, so the model never sums rows itself.
 2. **One engine for both interfaces.** The dashboard calls the same `/api/query` engine the agent uses, so a KPI card and a chat answer can never disagree.
 3. **In memory computation over 400 rows.** The dataset is small and read only, so computing in the application layer keeps every number unit testable and identical across Supabase and CSV modes. Supabase remains the system of record once seeded.
-4. **One harness, two drivers.** The agent loop is implemented over the Anthropic Messages API with tool use (`web/src/lib/agent/loop.ts`) and over Gemini function calling (`loop-gemini.ts`). Both share the same system prompt, the same seven tools, and the same SSE event protocol, so the model selector swaps the brain without touching the body.
+4. **Claude thinks, Gemini draws.** The agent loop is implemented over the Anthropic Messages API with tool use (`web/src/lib/agent/loop.ts`); the footer picks which Claude model powers it. Gemini participates only through the `generate_image` tool, with its own model selector in the same status bar. Both choices persist server side (`/api/settings`) so they survive reloads and apply to every client.
 5. **Stateless agent API, durable conversations.** Each turn sends the prior plain text turns after the compaction boundary, plus an optional summary. Conversations and messages persist in Supabase through full CRUD endpoints, and each conversation lives at `/chat/{id}`.
 6. **Compaction for long sessions.** The context bar tracks the real prompt size of the last model call. At 24k tokens the conversation compacts automatically: `claude-haiku-4-5` merges earlier turns into a structured briefing (goals, exact figures, preferences, open threads) that is injected ahead of the visible history. The boundary and the summary stay inspectable in the transcript.
 
@@ -85,10 +85,11 @@ The system prompt (`web/src/lib/agent/system-prompt.ts`) follows the published c
 
 ### Tool selection
 
-Seven small composable tools, each with a prescriptive "call this when" description:
+Eight small composable tools, each with a prescriptive "call this when" description:
 
 * `query_orders`: every count, rate, ranking, or trend; returns rows plus a result id, the plan, and the applied filters.
-* `forecast_demand`: predictions and inventory planning; renders its own visualization.
+* `forecast_demand`: predictions and inventory planning; renders its own visualization. This is the ML the agent uses for predictions, with the method chosen by backtest.
+* `evaluate_ml_models`: trains and benchmarks the late delivery classifiers live with leakage safe cross validation when asked whether ML can predict delays, and reports the honest verdict with a comparison chart.
 * `create_chart`: renders a chart from a result produced earlier in the turn; the agent picks the chart type.
 * `generate_image`: Gemini visual assets such as report covers, never data charts.
 * `knowledge_list`, `knowledge_read`, `knowledge_write`: the agent's evolving markdown memory.
@@ -114,6 +115,8 @@ Monthly series per category, region, carrier, warehouse, or the whole network fe
 The research notebook (`ml/eda_and_delay_model.ipynb`, executed outputs included) studies a late delivery classifier with preregistered ship criteria: mean cross validated ROC AUC at or above 0.65 and a permutation test p value under 0.05, on leakage safe features only.
 
 Result: logistic regression reached **AUC 0.465**, worse than chance, with permutation **p = 0.68**. The carrier level differences visible in exploration are small sample noise. The decision, recorded in `ml/model/DECISION.md`, was **not to ship** a prediction tool to the agent. A confidently wrong risk score is worse than none.
+
+The agent still engages with this ML honestly. Ask it whether machine learning can predict late deliveries and it calls `evaluate_ml_models`, which trains the same classifiers live with leakage safe cross validation, charts the comparison, and explains why per order risk scores stay unshipped. Forecasting is the ML the agent does use for predictions, because it passes its backtest.
 
 The ML Lab page makes that study a product surface:
 
@@ -162,11 +165,11 @@ Covered edge cases include quoted CSV fields such as "London, UK", ISO week boun
 ## 11. Testing
 
 * **Unit tests:** `cd web && npm test` covers engine KPIs against independent ground truths, filtering, grouping, sorting, relative windows, ISO weeks, bucket filling, forecast backtesting, SKU fallback, and CSV quoting.
-* **End to end:** the app was driven through Chrome DevTools across both model providers: dashboard numbers against ground truth, the three example questions from the brief, multi turn context, compaction, canvas behavior, image generation, knowledge writes, ML Lab training, and notebook rendering.
+* **End to end:** the app was driven through Chrome DevTools: dashboard numbers against ground truth, the three example questions from the brief, multi turn context, compaction, canvas behavior, image generation, knowledge writes, ML Lab training including CSV upload, and notebook rendering.
 
 ## 12. AI usage disclosure
 
-This project was built with Claude Code from Anthropic as the primary engineering tool, covering architecture, implementation, tests, and this README, directed and reviewed by the author. Runtime AI: Anthropic Claude and Google Gemini for the agent, Google Gemini for image generation.
+This project was built with Claude Code from Anthropic as the primary engineering tool, covering architecture, implementation, tests, and this README, directed and reviewed by the author. Runtime AI: Anthropic Claude for the agent and the compaction summarizer, Google Gemini for image generation.
 
 ## 13. Repository layout
 

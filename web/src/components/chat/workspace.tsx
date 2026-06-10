@@ -22,7 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { AgentEvent, ToolUiPayload } from "@/lib/agent/events";
-import { DEFAULT_CHAT_MODEL } from "@/lib/chat-models";
+import { DEFAULT_CHAT_MODEL, PROVIDER_COLORS, getChatModel } from "@/lib/chat-models";
 import { streamChat, type StreamHandle } from "@/lib/client/chat-stream";
 import {
   getConversationsStore,
@@ -44,7 +44,7 @@ import { CanvasPanel } from "./canvas-panel";
 import { COMPACT_AT, ContextBar } from "./context-bar";
 import { HistoryPanel } from "./history-panel";
 import { Markdown } from "./markdown";
-import { ModelSelect } from "./model-select";
+import { SETTINGS_EVENT } from "@/components/layout/footer";
 
 /* ------------------------------------------------------------------ */
 /* message model                                                        */
@@ -138,7 +138,6 @@ function UsageChip({ icon: Icon, text }: { icon: typeof Workflow; text: string }
 interface Meta {
   id: string | null;
   title: string;
-  model: string;
   summary: string | null;
   compactedUntil: number;
   totalIn: number;
@@ -149,7 +148,6 @@ interface Meta {
 const EMPTY_META: Meta = {
   id: null,
   title: "New conversation",
-  model: DEFAULT_CHAT_MODEL,
   summary: null,
   compactedUntil: 0,
   totalIn: 0,
@@ -183,6 +181,9 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [compacting, setCompacting] = useState(false);
+  // global model settings — owned by the footer controls, mirrored here
+  const [agentModel, setAgentModel] = useState(DEFAULT_CHAT_MODEL);
+  const [imageModel, setImageModel] = useState<string | undefined>(undefined);
 
   const handleRef = useRef<StreamHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -190,7 +191,27 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
   itemsRef.current = items;
   const metaRef = useRef<Meta>(meta);
   metaRef.current = meta;
+  const modelsRef = useRef({ agent: DEFAULT_CHAT_MODEL, image: undefined as string | undefined });
+  modelsRef.current = { agent: agentModel, image: imageModel };
   const bootstrapped = useRef(false);
+
+  /* ----- model settings: load once, then follow footer changes live ----- */
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.settings?.agent_model) setAgentModel(d.settings.agent_model);
+        if (d?.settings?.image_model) setImageModel(d.settings.image_model);
+      })
+      .catch(() => null);
+    const onSettings = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { agent_model?: string; image_model?: string };
+      if (detail?.agent_model) setAgentModel(detail.agent_model);
+      if (detail?.image_model) setImageModel(detail.image_model);
+    };
+    window.addEventListener(SETTINGS_EVENT, onSettings);
+    return () => window.removeEventListener(SETTINGS_EVENT, onSettings);
+  }, []);
 
   /* ----- store + conversation list ----- */
   const refreshList = useCallback(async (s?: ConversationsStore) => {
@@ -239,7 +260,6 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
       setMeta({
         id: data.id,
         title: data.title,
-        model: data.model,
         summary: data.summary,
         compactedUntil: data.compacted_until,
         totalIn: data.total_input_tokens,
@@ -422,7 +442,7 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
       // first message → create the conversation and move to /chat/{id}
       if (!m.id) {
         const created = await store
-          .create({ title: text.slice(0, 70), model: m.model })
+          .create({ title: text.slice(0, 70), model: modelsRef.current.agent })
           .catch(() => null);
         if (created) {
           m = { ...m, id: created.id, title: created.title };
@@ -452,7 +472,13 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
       setStreaming(true);
 
       const handle = streamChat(
-        { message: text, history, model: m.model, summary: m.summary ?? undefined },
+        {
+          message: text,
+          history,
+          model: modelsRef.current.agent,
+          image_model: modelsRef.current.image,
+          summary: m.summary ?? undefined,
+        },
         applyEvent,
       );
       handleRef.current = handle;
@@ -487,7 +513,7 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
           await store.appendMessages(mm.id, batch).catch(() => null);
           await store
             .update(mm.id, {
-              model: mm.model,
+              model: modelsRef.current.agent,
               total_input_tokens: mm.totalIn,
               total_output_tokens: mm.totalOut,
               last_context_tokens: mm.lastContext,
@@ -557,11 +583,6 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
     void refreshList(store);
   };
 
-  const changeModel = async (model: string) => {
-    setMeta((m) => ({ ...m, model }));
-    if (meta.id && store) await store.update(meta.id, { model }).catch(() => null);
-  };
-
   const uncompacted = items.length - meta.compactedUntil;
 
   return (
@@ -613,7 +634,16 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
               </div>
             </div>
             <div className="flex-1" />
-            <ModelSelect value={meta.model} onChange={changeModel} disabled={streaming} />
+            <span
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-panel-2/70 px-2.5 py-1 text-[11px] font-semibold text-ink-2"
+              title="Agent model — switch it in the status bar below"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: PROVIDER_COLORS.anthropic }}
+              />
+              {getChatModel(agentModel).label}
+            </span>
             <ContextBar
               lastContextTokens={meta.lastContext}
               totalIn={meta.totalIn}

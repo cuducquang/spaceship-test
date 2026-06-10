@@ -13,6 +13,7 @@ export function streamChat(
     message: string;
     history: { role: "user" | "assistant"; content: string }[];
     model?: string;
+    image_model?: string;
     summary?: string;
   },
   onEvent: (event: AgentEvent) => void,

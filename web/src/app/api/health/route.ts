@@ -1,5 +1,6 @@
 import { getKnowledgeStore } from "@/lib/agent/knowledge-store";
 import { getDataset } from "@/lib/data/dataset";
+import { getSettings } from "@/lib/server/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export async function GET() {
   try {
     const dataset = await getDataset();
     const knowledge = await getKnowledgeStore();
+    const settings = await getSettings();
     return Response.json({
       ok: true,
       dataset: {
@@ -17,8 +19,8 @@ export async function GET() {
       },
       knowledge: { driver: knowledge.driver },
       agent: {
-        model: process.env.ANTHROPIC_MODEL || "claude-opus-4-8",
-        imageModel: process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image",
+        model: settings.agent_model,
+        imageModel: settings.image_model,
         anthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
         geminiKey: Boolean(process.env.GEMINI_API_KEY),
       },

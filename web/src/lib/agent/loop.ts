@@ -1,7 +1,6 @@
 ﻿import Anthropic from "@anthropic-ai/sdk";
 import { getChatModel } from "@/lib/chat-models";
 import type { AgentEvent } from "./events";
-import { runGeminiTurn } from "./loop-gemini";
 import {
   clampHistory,
   executeTools,
@@ -19,16 +18,12 @@ export type { AgentRunOptions, ChatTurn } from "./shared";
  *   user question → model interprets → tool selection → validated structured
  *   input → deterministic computation → result → explanation → visualization
  *
- * Two interchangeable drivers share the same tools, system prompt and SSE
- * event protocol: Claude (Messages API, below) and Gemini (loop-gemini.ts).
+ * The agent always runs on Claude (Messages API); Gemini participates only
+ * through the generate_image tool.
  */
 export async function* runAgentTurn(opts: AgentRunOptions): AsyncGenerator<AgentEvent> {
   const model = getChatModel(opts.model);
-  if (model.provider === "google") {
-    yield* runGeminiTurn(opts, model.id);
-  } else {
-    yield* runClaudeTurn(opts, model.id, model.thinkingDisplay ?? false);
-  }
+  yield* runClaudeTurn(opts, model.id, model.thinkingDisplay ?? false);
 }
 
 let anthropic: Anthropic | null = null;
@@ -44,7 +39,7 @@ async function* runClaudeTurn(
   thinkingDisplay: boolean,
 ): AsyncGenerator<AgentEvent> {
   const client = getClient();
-  const prepared = await prepareAgent();
+  const prepared = await prepareAgent(opts.imageModel);
   const anthropicTools = toAnthropicTools(prepared.registry);
 
   const system: Anthropic.TextBlockParam[] = [

@@ -9,7 +9,7 @@ import {
   type ToolContext,
 } from "./tools";
 
-/** Provider-agnostic setup shared by the Claude and Gemini agent loops. */
+/** Setup and tool plumbing shared by the agent loop. */
 
 export const MAX_ITERATIONS = 8;
 export const MAX_HISTORY_TURNS = 16;
@@ -25,6 +25,8 @@ export interface AgentRunOptions {
   userMessage: string;
   /** Compaction summary of earlier turns, injected ahead of the history. */
   summary?: string;
+  /** Gemini model the generate_image tool should use (footer setting). */
+  imageModel?: string;
   signal?: AbortSignal;
 }
 
@@ -35,7 +37,7 @@ export interface PreparedAgent {
   ctx: ToolContext;
 }
 
-export async function prepareAgent(): Promise<PreparedAgent> {
+export async function prepareAgent(imageModel?: string): Promise<PreparedAgent> {
   const dataset = await getDataset();
   const knowledge = await getKnowledgeStore();
   const knowledgeEntries = await knowledge.list().catch(() => []);
@@ -44,7 +46,7 @@ export async function prepareAgent(): Promise<PreparedAgent> {
     systemPrompt: buildSystemPrompt(dataset, knowledgeEntries),
     registry,
     byName: new Map(registry.map((t) => [t.name, t])),
-    ctx: { dataset, results: new Map<string, StoredResult>(), knowledge },
+    ctx: { dataset, results: new Map<string, StoredResult>(), knowledge, imageModel },
   };
 }
 

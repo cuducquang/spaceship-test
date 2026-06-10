@@ -31,12 +31,17 @@ const SEED_DIR = path.join(process.cwd(), "data", "knowledge");
 
 function sanitize(filePath: string): string {
   const clean = filePath.replace(/\\/g, "/").replace(/^\/+/, "").trim();
-  if (!/^[a-zA-Z0-9._\-/]+\.md$/.test(clean) || clean.includes("..")) {
+  if (!/^[a-zA-Z0-9._\-/]+\.(md|json)$/.test(clean) || clean.includes("..")) {
     throw new Error(
       `Invalid knowledge path "${filePath}" — use a simple name ending in .md (e.g. insights.md)`,
     );
   }
   return clean;
+}
+
+/** Paths starting with "_" are app internals (e.g. settings) — hidden from listings. */
+function isHidden(filePath: string): boolean {
+  return filePath.startsWith("_");
 }
 
 function preview(content: string): string {
@@ -51,7 +56,9 @@ function localStore(): KnowledgeStore {
   return {
     driver: "local-fs",
     async list() {
-      const files = fs.readdirSync(SEED_DIR).filter((f) => f.endsWith(".md"));
+      const files = fs
+        .readdirSync(SEED_DIR)
+        .filter((f) => f.endsWith(".md") && !isHidden(f));
       return files.map((f) => {
         const full = path.join(SEED_DIR, f);
         const stat = fs.statSync(full);
@@ -74,6 +81,7 @@ function localStore(): KnowledgeStore {
       const clean = sanitize(p);
       const full = path.join(SEED_DIR, clean);
       if (!full.startsWith(SEED_DIR)) throw new Error("Path escapes knowledge directory");
+      fs.mkdirSync(path.dirname(full), { recursive: true });
       if (mode === "append" && fs.existsSync(full)) {
         const existing = fs.readFileSync(full, "utf8");
         fs.writeFileSync(full, `${existing.replace(/\n*$/, "\n")}${content}\n`, "utf8");
@@ -116,12 +124,14 @@ function memoryStore(): KnowledgeStore {
   return {
     driver: "memory",
     async list() {
-      return [...memoryFiles.entries()].map(([p, v]) => ({
-        path: p,
-        bytes: Buffer.byteLength(v.content),
-        updated_at: v.updated_at,
-        preview: preview(v.content),
-      }));
+      return [...memoryFiles.entries()]
+        .filter(([p]) => !isHidden(p))
+        .map(([p, v]) => ({
+          path: p,
+          bytes: Buffer.byteLength(v.content),
+          updated_at: v.updated_at,
+          preview: preview(v.content),
+        }));
     },
     async read(p) {
       return memoryFiles.get(sanitize(p))?.content ?? null;
@@ -182,12 +192,14 @@ async function supabaseStore(): Promise<KnowledgeStore | null> {
         .select("path,content,updated_at")
         .order("path");
       if (error) throw new Error(error.message);
-      return (data ?? []).map((r) => ({
-        path: r.path,
-        bytes: Buffer.byteLength(r.content ?? ""),
-        updated_at: r.updated_at,
-        preview: preview(r.content ?? ""),
-      }));
+      return (data ?? [])
+        .filter((r) => !isHidden(r.path))
+        .map((r) => ({
+          path: r.path,
+          bytes: Buffer.byteLength(r.content ?? ""),
+          updated_at: r.updated_at,
+          preview: preview(r.content ?? ""),
+        }));
     },
     async read(p) {
       const { data, error } = await supabase

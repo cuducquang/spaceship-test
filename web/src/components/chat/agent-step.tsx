@@ -5,6 +5,7 @@ import {
   Brain,
   Check,
   ChevronDown,
+  FlaskConical,
   Image as ImageIcon,
   LineChart,
   Loader2,
@@ -28,6 +29,7 @@ import { HumanInput } from "./human-input";
 const TOOL_META: Record<string, { run: string; done: string; icon: typeof Wrench }> = {
   query_orders: { run: "Querying orders", done: "Queried orders", icon: Search },
   forecast_demand: { run: "Forecasting demand", done: "Forecast ready", icon: TrendingUp },
+  evaluate_ml_models: { run: "Training classifiers", done: "Models benchmarked", icon: FlaskConical },
   create_chart: { run: "Building chart", done: "Chart built", icon: LineChart },
   generate_image: { run: "Generating image", done: "Image generated", icon: ImageIcon },
   knowledge_list: { run: "Listing knowledge", done: "Knowledge listed", icon: NotebookPen },
