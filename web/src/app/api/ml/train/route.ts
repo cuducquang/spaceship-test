@@ -14,8 +14,25 @@ const BodySchema = z.object({
     .array(z.object({ name: z.string().min(1), kind: z.enum(["numeric", "categorical"]) }))
     .min(1)
     .max(25),
-  models: z.array(z.enum(MODEL_KINDS)).min(1).max(4),
+  models: z.array(z.enum(MODEL_KINDS)).min(1).max(6),
   folds: z.union([z.literal(3), z.literal(5)]).default(5),
+  params: z
+    .object({
+      logreg: z
+        .object({ l2: z.number().min(0).max(1), epochs: z.number().int().min(50).max(2000) })
+        .partial()
+        .optional(),
+      tree: z
+        .object({ max_depth: z.number().int().min(1).max(10), min_leaf: z.number().int().min(2).max(50) })
+        .partial()
+        .optional(),
+      forest: z
+        .object({ trees: z.number().int().min(10).max(120), max_depth: z.number().int().min(2).max(10) })
+        .partial()
+        .optional(),
+      knn: z.object({ k: z.number().int().min(1).max(51) }).partial().optional(),
+    })
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {

@@ -298,12 +298,12 @@ const ML_PRESET_FEATURES: FeatureSpec[] = [
 
 const evaluateMlSchema = z.strictObject({
   models: z
-    .array(z.enum(["dummy", "logreg", "tree", "knn"]))
+    .array(z.enum(["dummy", "logreg", "nb", "tree", "forest", "knn"]))
     .min(1)
-    .max(4)
-    .default(["dummy", "logreg", "tree", "knn"])
+    .max(6)
+    .default(["dummy", "logreg", "nb", "tree", "forest", "knn"])
     .describe(
-      "Classifiers to benchmark: dummy = class-prior baseline, logreg = logistic regression, tree = CART decision tree, knn = k-nearest neighbors. Default: all four.",
+      "Classifiers to benchmark: dummy = class-prior baseline, logreg = logistic regression, nb = Gaussian naive Bayes, tree = CART decision tree, forest = random forest (bagged CART, √d feature subspace), knn = k-nearest neighbors. Default: all six.",
     ),
   folds: z
     .number()
@@ -317,7 +317,7 @@ const evaluateMlSchema = z.strictObject({
 const evaluateMlTool: AgentTool = {
   name: "evaluate_ml_models",
   description:
-    "Train and benchmark late-delivery classifiers LIVE on the completed orders (baseline prior, logistic regression, CART decision tree, k-nearest neighbors) using leakage-safe stratified cross-validation with order-time features only. Returns ROC-AUC, accuracy and F1 per model plus an honest deployability verdict, and renders a comparison chart. Call when the user asks whether machine learning can predict late deliveries, how the classifiers perform, or to rerun the model benchmark. The pre-registered offline study found NO deployable signal (logistic regression AUC 0.465, permutation p = 0.68) — use this tool to demonstrate that with live numbers; NEVER fabricate per-order risk predictions from these models.",
+    "Train and benchmark late-delivery classifiers LIVE on the completed orders (baseline prior, logistic regression, naive Bayes, CART decision tree, random forest, k-nearest neighbors) using leakage-safe stratified cross-validation with order-time features only. Returns ROC-AUC, accuracy and F1 per model plus an honest deployability verdict, and renders a comparison chart. Call when the user asks whether machine learning can predict late deliveries, how the classifiers perform, or to rerun the model benchmark. The pre-registered offline study found NO deployable signal (logistic regression AUC 0.465, permutation p = 0.68) — use this tool to demonstrate that with live numbers; NEVER fabricate per-order risk predictions from these models.",
   schema: evaluateMlSchema,
   async execute(input, ctx) {
     const { models, folds } = evaluateMlSchema.parse(input);
@@ -378,7 +378,7 @@ const evaluateMlTool: AgentTool = {
         chart: {
           type: "bar",
           title: "Classifier benchmark — late vs on time",
-          subtitle: `${bench.n} completed orders · ${bench.folds}-fold stratified CV · leakage-safe`,
+          subtitle: `${bench.n} completed orders · ${bench.folds} fold stratified CV · leakage safe`,
           x: "model",
           series: ["auc", "f1"],
           value_format: "number",

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, ChevronUp, Cpu, Database, Image as ImageIcon, NotebookPen } from "lucide-react";
+import { Check, ChevronUp, Cpu, Database, Image as ImageIcon } from "lucide-react";
 import {
   CHAT_MODELS,
   IMAGE_MODELS,
@@ -24,6 +24,13 @@ interface Settings {
 
 export const SETTINGS_EVENT = "spaceship:settings";
 
+/** "2025-01-01" → "Jan 1 2025" (no ISO dashes in visible copy). */
+function monthDay(iso?: string): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "…";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))} ${iso.slice(0, 4)}`;
+}
+
 function Seg({
   icon: Icon,
   label,
@@ -35,7 +42,7 @@ function Seg({
 }) {
   return (
     <span className="group flex shrink-0 items-center gap-1.5 transition-colors">
-      <Icon size={11} className="text-white/35 transition-colors group-hover:text-emerald-300/80" />
+      <Icon size={11} className="text-white/35 transition-colors group-hover:text-cyan-300/80" />
       <span className="text-white/40">{label}</span>
       <span className="font-mono text-[10.5px] font-medium text-white/75">{value}</span>
     </span>
@@ -69,8 +76,8 @@ function ChromeSelect({
           aria-label={`${label} model`}
           className={cn(
             "group flex items-center gap-1.5 rounded-md px-1.5 py-0.5 font-mono text-[10.5px] font-medium text-white/80 outline-none transition-colors",
-            "hover:bg-white/8 hover:text-emerald-200 focus-visible:bg-white/8",
-            "data-[state=open]:bg-white/8 data-[state=open]:text-emerald-200",
+            "hover:bg-white/8 hover:text-cyan-200 focus-visible:bg-white/8",
+            "data-[state=open]:bg-white/8 data-[state=open]:text-cyan-200",
           )}
         >
           <span
@@ -161,10 +168,10 @@ export function Footer() {
   return (
     <footer className="z-30 shrink-0">
       <div className="hairline" />
-      <div className="flex h-9 items-center gap-5 overflow-x-auto whitespace-nowrap bg-[#0b2230] px-4 text-[11px]">
+      <div className="flex h-9 items-center gap-5 overflow-x-auto whitespace-nowrap bg-[#0a0e16]/95 px-4 backdrop-blur text-[11px]">
         <span className="flex shrink-0 items-center gap-1.5">
-          <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-          <span className="font-semibold text-emerald-200/90">
+          <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+          <span className="font-semibold text-cyan-200/90">
             {health ? "All systems live" : "Connecting"}
           </span>
         </span>
@@ -172,16 +179,7 @@ export function Footer() {
         <Seg
           icon={Database}
           label="data"
-          value={
-            health?.dataset
-              ? `${health.dataset.rows} orders · ${health.dataset.source}`
-              : "…"
-          }
-        />
-        <Seg
-          icon={NotebookPen}
-          label="knowledge"
-          value={health?.knowledge?.driver ?? "…"}
+          value={health?.dataset ? `${health.dataset.rows} orders` : "…"}
         />
         {settings ? (
           <>
@@ -212,8 +210,8 @@ export function Footer() {
         )}
         <span className="flex-1" />
         <span className="hidden shrink-0 font-mono text-[10px] text-white/30 lg:inline">
-          AI routes · engines compute · window {health?.dataset?.dateRange?.from ?? "…"} →{" "}
-          {health?.dataset?.dateRange?.to ?? "…"}
+          AI routes · engines compute · window {monthDay(health?.dataset?.dateRange?.from)} →{" "}
+          {monthDay(health?.dataset?.dateRange?.to)}
         </span>
       </div>
     </footer>

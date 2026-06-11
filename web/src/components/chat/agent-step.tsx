@@ -105,7 +105,7 @@ export function ToolStep({ step }: { step: ToolStepData }) {
           <div className="border-t border-border bg-panel-2/40 px-3 py-2.5">
             <HumanInput input={step.input} />
             {step.error && (
-              <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11.5px] text-rose-700">
+              <p className="mt-2 rounded-lg border border-bad/25 bg-bad/10 px-2.5 py-1.5 text-[11.5px] text-bad">
                 {step.error}
               </p>
             )}

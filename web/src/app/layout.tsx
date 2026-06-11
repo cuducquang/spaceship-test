@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
-import { Footer } from "@/components/layout/footer";
-import { Header } from "@/components/layout/header";
+import { AppChrome } from "@/components/layout/app-chrome";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,7 +22,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Spaceship — AI Logistics Analytics",
+  title: "Spaceship · AI Logistics Analytics",
   description:
     "AI-powered logistics analytics: dashboards, natural-language queries, demand forecasting and an evolving knowledge base.",
 };
@@ -39,11 +38,7 @@ export default function RootLayout({
       className={`${inter.variable} ${grotesk.variable} ${jetbrains.variable} h-full antialiased`}
     >
       <body className="h-full">
-        <div className="flex h-screen flex-col overflow-hidden">
-          <Header />
-          <main className="min-h-0 min-w-0 flex-1 overflow-hidden">{children}</main>
-          <Footer />
-        </div>
+        <AppChrome>{children}</AppChrome>
       </body>
     </html>
   );

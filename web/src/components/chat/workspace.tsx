@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleStop,
   Clock3,
+  FlaskConical,
   Image as ImageIcon,
   PackageSearch,
   PanelLeftOpen,
@@ -29,7 +30,6 @@ import {
   type AppendableMessage,
   type ConversationMeta,
   type ConversationsStore,
-  type StoredMessage,
   type StoredSegment,
 } from "@/lib/client/conversations";
 import { cn } from "@/lib/utils";
@@ -160,7 +160,8 @@ const SUGGESTIONS = [
   { icon: Truck, title: "Carrier delay rates", q: "Which carrier has the highest delay rate? Account for sample size." },
   { icon: PackageSearch, title: "Late deliveries last month", q: "How many orders were delivered late last month?" },
   { icon: TrendingUp, title: "Demand forecast", q: "Predict demand for the CRAYON category for the next 4 months. How much inventory should I plan?" },
-  { icon: Sparkles, title: "Regional deep-dive", q: "Compare on-time delivery rate across regions and visualize it. Which region needs attention?" },
+  { icon: Sparkles, title: "Regional deep dive", q: "Compare on time delivery rate across regions and visualize it. Which region needs attention?" },
+  { icon: FlaskConical, title: "Can ML predict delays?", q: "Can machine learning predict late deliveries on this data? Benchmark the classifiers and explain the tradeoffs." },
   { icon: ImageIcon, title: "Report cover image", q: "Generate a clean, modern cover illustration for our 2025 logistics performance report." },
 ];
 
@@ -176,8 +177,19 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(true);
-  const [canvasOpen, setCanvasOpen] = useState(true);
+  // panels start closed (mobile default) and open on desktop after mount
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [canvasOpen, setCanvasOpen] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (window.innerWidth >= 1024) {
+        setHistoryOpen(true);
+        setCanvasOpen(true);
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [compacting, setCompacting] = useState(false);
@@ -187,12 +199,15 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
 
   const handleRef = useRef<StreamHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // latest-state mirrors for async callbacks (assigned in an effect, never in render)
   const itemsRef = useRef<ChatItem[]>([]);
-  itemsRef.current = items;
   const metaRef = useRef<Meta>(meta);
-  metaRef.current = meta;
   const modelsRef = useRef({ agent: DEFAULT_CHAT_MODEL, image: undefined as string | undefined });
-  modelsRef.current = { agent: agentModel, image: imageModel };
+  useEffect(() => {
+    itemsRef.current = items;
+    metaRef.current = meta;
+    modelsRef.current = { agent: agentModel, image: imageModel };
+  }, [items, meta, agentModel, imageModel]);
   const bootstrapped = useRef(false);
 
   /* ----- model settings: load once, then follow footer changes live ----- */
@@ -587,7 +602,17 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
 
   return (
     <CanvasContext.Provider value={canvasApi}>
-      <div className="flex h-full min-h-0">
+      <div className="relative flex h-full min-h-0">
+        {(historyOpen || canvasOpen) && (
+          <button
+            aria-label="Close panels"
+            className="absolute inset-0 z-30 bg-black/55 backdrop-blur-[1px] lg:hidden"
+            onClick={() => {
+              setHistoryOpen(false);
+              setCanvasOpen(false);
+            }}
+          />
+        )}
         {historyOpen && (
           <HistoryPanel
             conversations={conversations}
@@ -629,14 +654,14 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
               </div>
               <div className="text-[10px] text-ink-3">
                 {streaming
-                  ? "agent running — interpreting, selecting tools, computing"
+                  ? "agent running: interpreting, selecting tools, computing"
                   : `${meta.summary ? "compacted session · " : ""}every number computed by validated tools`}
               </div>
             </div>
             <div className="flex-1" />
             <span
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-panel-2/70 px-2.5 py-1 text-[11px] font-semibold text-ink-2"
-              title="Agent model — switch it in the status bar below"
+              className="hidden shrink-0 items-center gap-1.5 rounded-full border border-border bg-panel-2/70 px-2.5 py-1 text-[11px] font-semibold text-ink-2 sm:flex"
+              title="Agent model. Switch it in the status bar below"
             >
               <span
                 className="h-1.5 w-1.5 rounded-full"
@@ -690,11 +715,11 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
                         <div className="mb-2.5 flex items-center gap-2.5">
                           <div
                             className={cn(
-                              "relative flex h-7 w-7 items-center justify-center rounded-[10px] bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-md shadow-emerald-500/25",
+                              "relative flex h-7 w-7 items-center justify-center rounded-[10px] bg-gradient-to-br from-cyan-400 to-indigo-500 shadow-md shadow-indigo-500/30",
                               item.status === "streaming" && "avatar-live",
                             )}
                           >
-                            <Rocket size={13} className="text-navy" />
+                            <Rocket size={13} className="text-[#0a0e16]" />
                           </div>
                           <div className="leading-none">
                             <span className="text-[11.5px] font-bold uppercase tracking-wider text-ink-2">
@@ -772,7 +797,7 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
                     }
                   }}
                   rows={1}
-                  placeholder='Ask anything — "Which carrier has the highest delay rate?"'
+                  placeholder='Ask anything, e.g. "Which carrier has the highest delay rate?"'
                   className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-[14px] text-ink outline-none placeholder:text-ink-3"
                   style={{ height: "auto" }}
                   onInput={(e) => {
@@ -784,7 +809,7 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
                 {streaming ? (
                   <button
                     onClick={stop}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-bad transition-colors hover:bg-rose-100"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-bad/10 text-bad transition-colors hover:bg-bad/20"
                     title="Stop"
                   >
                     <CircleStop size={18} />
@@ -801,7 +826,7 @@ export function ChatWorkspace({ conversationId }: { conversationId?: string }) {
                 )}
               </div>
               <p className="mt-1.5 text-center text-[10.5px] text-ink-3">
-                Relative dates anchor to 2025-12-30 (latest data) · context auto-compacts at{" "}
+                Relative dates anchor to Dec 30 2025 (latest data) · context compacts automatically at{" "}
                 {COMPACT_AT / 1000}k tokens
               </p>
             </div>
@@ -843,8 +868,8 @@ function CompactedDivider({ summary }: { summary: string | null }) {
 }
 
 const SUGGESTION_GRADS = [
-  "from-emerald-400 to-teal-500",
   "from-cyan-400 to-sky-500",
+  "from-indigo-400 to-violet-500",
   "from-violet-400 to-purple-500",
   "from-amber-400 to-orange-500",
   "from-rose-400 to-pink-500",
@@ -865,8 +890,8 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
             style={{ background: "#6d5dd3", boxShadow: "0 0 10px 2px rgba(109,93,211,0.45)" }}
           />
         </span>
-        <div className="absolute inset-[15px] flex items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-[0_10px_36px_rgba(20,184,166,0.4)]">
-          <Rocket size={26} className="text-navy" />
+        <div className="absolute inset-[15px] flex items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-indigo-500 shadow-[0_10px_36px_rgba(99,102,241,0.45)]">
+          <Rocket size={26} className="text-[#0a0e16]" />
         </div>
       </div>
 
@@ -874,7 +899,7 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
         Ask your <span className="gradient-text">logistics data</span> anything
       </h2>
       <p className="mt-2.5 max-w-md text-[13px] leading-relaxed text-ink-3">
-        Pick a model, ask in plain language — the agent interprets, selects validated
+        Pick a model, ask in plain language: the agent interprets, selects validated
         analytical tools, computes, and sends every visualization to the live canvas.
       </p>
 

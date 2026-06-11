@@ -6,6 +6,8 @@ Spaceship is an analytics workspace for a logistics client. It pairs a tradition
 
 **Stack:** Next.js 16, TypeScript, Supabase, Claude for the agent (Opus 4.8, Opus 4.6, Sonnet 4.6), Gemini for image generation (3 Pro Image, 3.1 Flash Image, 2.5 Flash Image), Recharts, Tailwind CSS v4
 
+**Test credentials:** username `reviewer` · password `spaceship2026` (shown on the login screen as well)
+
 ## What it covers
 
 * **Descriptive analytics.** A dashboard with five KPIs, five interactive charts, and global filters.
@@ -13,7 +15,9 @@ Spaceship is an analytics workspace for a logistics client. It pairs a tradition
 * **Predictive and prescriptive analytics.** Backtested demand forecasts plus inventory recommendations at a 95 percent service level.
 * **Model controls in the status bar.** The footer selects the Claude model that powers the agent and the Gemini model that renders images; the choice persists server side and applies everywhere instantly.
 * **Long sessions.** A context usage meter and automatic conversation compaction keep multi turn sessions healthy.
-* **ML Lab.** The research notebook rendered block by block, plus in app model training and benchmarking, including on a CSV you upload.
+* **ML Lab.** The research notebook rendered block by block, plus in-app model training and benchmarking — six model families with tunable hyperparameters, a performance-vs-interpretability trade-off map, out-of-fold ROC curves, and a decision-threshold explorer with a live confusion matrix — including on a CSV you upload.
+* **Reviewer sign-in.** A login gate (hardcoded demo credentials, signed HttpOnly session cookie, enforced by the Next 16 proxy) satisfies the brief's "provide test credentials" clause.
+* **Responsive UI.** A light "control tower" visual system with dark mission chrome; every page works down to phone widths.
 
 ## 1. Getting started
 
@@ -30,14 +34,18 @@ Environment variables:
 * `GEMINI_API_KEY` (required): powers the image generation tool.
 * `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (required for persistence): the database for orders, knowledge files, and chat history.
 * `ANTHROPIC_MODEL` (optional): default agent model, defaults to `claude-opus-4-8`.
+* `AUTH_SECRET` (optional): overrides the demo session-signing secret in production.
 * `GEMINI_IMAGE_MODEL` (optional): image model, defaults to `gemini-3-pro-image`.
 
 Verification commands:
 
 ```bash
-npm test        # 19 unit tests for the analytics and forecasting engines
+npm test        # 26 unit tests: analytics + forecasting engines, ML engine artifacts
+npm run lint    # eslint (passes clean)
 npm run build   # production build
 ```
+
+Sign in with `reviewer` / `spaceship2026`. Every route (pages and APIs except `/api/health` and the auth endpoints) requires the session; signing out is in the header.
 
 The `/api/health` endpoint reports which data drivers are active at any time.
 
@@ -58,7 +66,7 @@ The Next.js app lives in the `web` subdirectory, so one project setting is essen
 
 1. In the Vercel project settings, set **Root Directory** to `web`. Without it the build fails immediately because the repository root has no `package.json`.
 2. Keep the framework preset on Next.js and the Node.js version on 22.x; install and build commands stay default (`npm install`, `next build`).
-3. Add the environment variables for Production and Preview: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`.
+3. Add the environment variables for Production and Preview: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and `AUTH_SECRET` (any long random string; signs the login session).
 4. Redeploy. The app degrades gracefully if some variables are missing (the dataset falls back to the bundled CSV and knowledge becomes ephemeral), but the agent itself needs `ANTHROPIC_API_KEY` and image generation needs `GEMINI_API_KEY`.
 
 The serverless bundle ships `web/data` through `outputFileTracingIncludes`, so the CSV fallback, the knowledge seeds, and the notebook all work on Vercel without extra configuration.
@@ -81,7 +89,8 @@ The expected flow from the brief is implemented literally:
 3. **In memory computation over 400 rows.** The dataset is small and read only, so computing in the application layer keeps every number unit testable and identical across Supabase and CSV modes. Supabase remains the system of record once seeded.
 4. **Claude thinks, Gemini draws.** The agent loop is implemented over the Anthropic Messages API with tool use (`web/src/lib/agent/loop.ts`); the footer picks which Claude model powers it. Gemini participates only through the `generate_image` tool, with its own model selector in the same status bar. Both choices persist server side (`/api/settings`) so they survive reloads and apply to every client.
 5. **Stateless agent API, durable conversations.** Each turn sends the prior plain text turns after the compaction boundary, plus an optional summary. Conversations and messages persist in Supabase through full CRUD endpoints, and each conversation lives at `/chat/{id}`.
-6. **Compaction for long sessions.** The context bar tracks the real prompt size of the last model call. At 24k tokens the conversation compacts automatically: `claude-haiku-4-5` merges earlier turns into a structured briefing (goals, exact figures, preferences, open threads) that is injected ahead of the visible history. The boundary and the summary stay inspectable in the transcript.
+6. **Demo authentication, real enforcement.** One hardcoded reviewer account (the data is mock, so a user table would be theater) — but the enforcement path is production-shaped: an HMAC-signed expiring session cookie (HttpOnly, SameSite=Lax) issued by `/api/auth/login` and verified in `src/proxy.ts` (Next 16's middleware successor) for every page and API route, with `?next=` deep-link redirects.
+7. **Compaction for long sessions.** The context bar tracks the real prompt size of the last model call. At 24k tokens the conversation compacts automatically: `claude-haiku-4-5` merges earlier turns into a structured briefing (goals, exact figures, preferences, open threads) that is injected ahead of the visible history. The boundary and the summary stay inspectable in the transcript.
 
 ## 4. The AI approach
 
@@ -132,7 +141,8 @@ The agent still engages with this ML honestly. Ask it whether machine learning c
 The ML Lab page makes that study a product surface:
 
 * **Research notebook tab.** The executed notebook parsed server side and rendered block by block: markdown, collapsible code cells, stdout, and matplotlib plots, with a clickable table of contents.
-* **Train and benchmark tab.** A dependency free TypeScript ML engine (`web/src/lib/ml/engine.ts`) trains a prior baseline, logistic regression, a CART decision tree, and kNN with stratified cross validation and rank based ROC AUC. Encoders are fit on training folds only. You can train on the bundled dataset or upload your own CSV, pick the target column and positive class, toggle features, and flip column types inline. Results return as a ranked table, a comparison chart, coefficient and importance explanations, and a verdict judged against the notebook's bar. On the bundled data the TypeScript engine independently reproduces the sklearn conclusion.
+* **Train and benchmark tab.** A dependency-free TypeScript ML engine (`web/src/lib/ml/engine.ts`) trains six model families — prior baseline, logistic regression, Gaussian naive Bayes, a CART decision tree, a random forest (bootstrap bagging, √d feature subspaces), and kNN — with stratified cross-validation and rank-based ROC-AUC. Encoders are fit on training folds only. Hyperparameters are tunable per model (L2/epochs, tree depth and leaf size, forest size and depth, k), and you can train on the bundled dataset or upload your own CSV, pick the target column and positive class, toggle features, and flip column types inline.
+* **Trade-offs made visible, Dataiku-style.** Results return as a ranked leaderboard (with an interpretability gauge per family), a performance-vs-interpretability trade-off map (bubble size = fit time), overlaid out-of-fold ROC curves against the chance diagonal, and a decision-threshold explorer whose confusion matrix and precision/recall/F1 are computed from pooled out-of-fold predictions — generalization, not training fit. A verdict is judged against the notebook's preregistered bar. On the bundled data the TypeScript engine independently reproduces the sklearn conclusion: no deployable signal.
 
 ## 7. Data correctness
 
@@ -162,12 +172,12 @@ Covered edge cases include quoted CSV fields such as "London, UK", ISO week boun
 * Generated images are kept in the session and are not written into stored history, to keep message rows small.
 * The result registry used by `create_chart` is per turn; the agent re queries cheaply when it needs to chart older results.
 * Compaction summaries are deliberately lossy; exact tool tables from compacted turns are dropped and re queried on demand.
-* There is no authentication; the brief allows it and the data is mock.
+* Authentication is a single shared reviewer account by design; per-user scoping of conversations and knowledge is listed under future improvements.
 
 ## 10. Future improvements
 
 1. Programmatic tool calling to compose query and chart steps in one scripted container step, cutting loop latency and tokens.
-2. Authentication with per user scoping of conversations and knowledge.
+2. Per-user accounts (the gate exists; what remains is scoping conversations and knowledge per user).
 3. Result caching keyed by spec hash plus dataset version, and SSE resume on reconnect.
 4. Richer forecasting once real data exists: seasonality, per warehouse lead times, service level optimization against holding cost.
 5. An evaluation harness replaying golden question to spec pairs in CI to catch interpretation regressions.
@@ -175,8 +185,8 @@ Covered edge cases include quoted CSV fields such as "London, UK", ISO week boun
 
 ## 11. Testing
 
-* **Unit tests:** `cd web && npm test` covers engine KPIs against independent ground truths, filtering, grouping, sorting, relative windows, ISO weeks, bucket filling, forecast backtesting, SKU fallback, and CSV quoting.
-* **End to end:** the app was driven through Chrome DevTools: dashboard numbers against ground truth, the three example questions from the brief, multi turn context, compaction, canvas behavior, image generation, knowledge writes, ML Lab training including CSV upload, and notebook rendering.
+* **Unit tests:** `cd web && npm test` covers engine KPIs against independent ground truths, filtering, grouping, sorting, relative windows, ISO weeks, bucket filling, forecast backtesting, SKU fallback, CSV quoting, and the ML engine (new model families recover a planted signal, deterministic forests, hyperparameter plumbing, ROC monotonicity, threshold-sweep confusion counts).
+* **End to end:** the app was driven through Chrome DevTools at desktop and phone viewports: the login flow (valid + invalid credentials, deep-link redirect), dashboard numbers against ground truth, the three example questions from the brief, multi-turn context, compaction, canvas behavior, image generation, knowledge writes, ML Lab training including hyperparameters and CSV upload, and notebook rendering.
 
 ## 12. AI usage disclosure
 

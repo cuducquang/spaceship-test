@@ -21,9 +21,9 @@ interface KFile {
   preview: string;
 }
 
+
 export default function KnowledgePage() {
   const [files, setFiles] = useState<KFile[]>([]);
-  const [driver, setDriver] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const [content, setContent] = useState<string>("");
   const [editing, setEditing] = useState(false);
@@ -34,11 +34,11 @@ export default function KnowledgePage() {
     const res = await fetch("/api/knowledge");
     const json = await res.json();
     setFiles(json.files ?? []);
-    setDriver(json.driver ?? "");
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const t = setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(t);
   }, [refresh]);
 
   const open = async (path: string) => {
@@ -83,12 +83,6 @@ export default function KnowledgePage() {
               <BookOpenText className="text-brand" size={24} />
               Agent knowledge
             </h1>
-            <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-ink-3">
-              Atlas&apos;s evolving memory — markdown files it lists, reads and writes through
-              tools while it works. Insights and your preferences accumulate here and shape
-              future answers. Storage driver:{" "}
-              <span className="tag align-middle">{driver || "…"}</span>
-            </p>
           </div>
           <button onClick={() => refresh()} className="btn-ghost">
             <RefreshCw size={14} />

@@ -76,7 +76,7 @@ export function ExplainPanel({
               ))}
             </ul>
             {meta.definitions_note && (
-              <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+              <p className="mt-1.5 rounded-lg border border-warn/25 bg-warn/10 px-2.5 py-1.5 text-[11px] text-warn">
                 {meta.definitions_note}
               </p>
             )}

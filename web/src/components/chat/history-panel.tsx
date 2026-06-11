@@ -47,7 +47,7 @@ export function HistoryPanel({
   );
 
   return (
-    <aside className="flex h-full w-[256px] shrink-0 flex-col border-r border-border bg-bg-2/60">
+    <aside className="flex h-full w-[256px] shrink-0 flex-col border-r border-border bg-bg-2/60 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:w-[280px] max-lg:bg-bg-2 max-lg:shadow-[24px_0_60px_rgba(0,0,0,0.55)]">
       {/* header */}
       <div className="flex items-center gap-2 border-b border-border bg-panel/75 px-3 py-2.5 backdrop-blur">
         <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-cyan shadow-sm">
@@ -58,11 +58,11 @@ export function HistoryPanel({
           <span
             className={cn(
               "tag !py-0 text-[9.5px]",
-              driver === "supabase" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+              driver === "supabase" && "border-good/30 bg-good/10 text-good",
             )}
             title="Where conversations are stored"
           >
-            {driver === "supabase" ? "● supabase" : "off"}
+            {driver === "supabase" ? "● synced" : "local only"}
           </span>
         )}
         <div className="flex-1" />
@@ -93,16 +93,9 @@ export function HistoryPanel({
 
       {/* list */}
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2.5 pb-3">
-        {driver === "none" && (
-          <p className="mx-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-800">
-            History is stored in Supabase. Run{" "}
-            <code className="font-mono">supabase/migrations</code> 0001 and 0002 in the SQL
-            editor to enable persistence.
-          </p>
-        )}
         {driver === "supabase" && filtered.length === 0 && (
           <p className="px-2 pt-6 text-center text-[11.5px] leading-relaxed text-ink-3">
-            {query ? "No conversations match." : "No conversations yet — ask the analyst something."}
+            {query ? "No conversations match." : "No conversations yet. Ask the analyst something."}
           </p>
         )}
         {filtered.map((c) => {

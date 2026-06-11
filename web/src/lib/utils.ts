@@ -37,23 +37,24 @@ export function formatTick(value: number, format: ValueFormat = "number"): strin
   return `${prefix}${Math.round(value * 100) / 100}`;
 }
 
+/* chart system: cyan leads, indigo follows, status stays semantic (light bg) */
 export const STATUS_COLORS: Record<string, string> = {
-  delivered: "#059669",
-  delayed: "#d97706",
-  in_transit: "#0284c7",
-  exception: "#e11d48",
+  delivered: "#10b981",
+  delayed: "#f59e0b",
+  in_transit: "#0ea5e9",
+  exception: "#ef4444",
   canceled: "#64748b",
 };
 
 export const CHART_PALETTE = [
-  "#0e7c66",
   "#0891b2",
-  "#6d5dd3",
-  "#d97706",
-  "#e11d48",
-  "#3b82f6",
-  "#84cc16",
-  "#f472b6",
+  "#6366f1",
+  "#10b981",
+  "#f59e0b",
+  "#f97316",
+  "#8b5cf6",
+  "#0ea5e9",
+  "#ec4899",
 ];
 
 export function timeAgo(iso: string): string {

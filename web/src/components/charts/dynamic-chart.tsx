@@ -173,7 +173,7 @@ export function DynamicChart({
           />
           <Tooltip
             content={<GlassTooltip format={format} labelMap={labelMap} />}
-            cursor={{ fill: "rgba(20,184,166,0.06)" }}
+            cursor={{ fill: "rgba(99,102,241,0.08)" }}
           />
           {chart.series.length > 1 && (
             <Legend
@@ -245,7 +245,7 @@ export function DynamicChart({
         )}
         <Tooltip
           content={<GlassTooltip format={format} labelMap={labelMap} />}
-          cursor={{ fill: "rgba(20,184,166,0.06)" }}
+          cursor={{ fill: "rgba(99,102,241,0.08)" }}
         />
         {(chart.series.length > 1 || lineKeys.length > 0) && (
           <Legend

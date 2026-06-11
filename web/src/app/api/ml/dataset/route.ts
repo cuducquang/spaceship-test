@@ -38,7 +38,7 @@ export async function GET() {
         { name: "unit_price_usd", kind: "numeric" },
         { name: "is_promo", kind: "categorical" },
       ],
-      note: "Completed orders only (delivered + delayed + exception); features are knowable at order time — nothing derived from delivery_date.",
+      note: "Completed orders only (delivered + delayed + exception); features are knowable at order time, nothing derived from the delivery date.",
     },
   });
 }

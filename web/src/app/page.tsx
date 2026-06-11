@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CheckCircle2,
-  Clock3,
-  Package,
-  Sparkles,
-  Timer,
-  TriangleAlert,
-} from "lucide-react";
+import { CheckCircle2, Clock3, Package, Timer } from "lucide-react";
 import type { ChartPayloadData } from "@/lib/agent/events";
 import type { QueryResult, QuerySpec } from "@/lib/analytics/specs";
 import { DynamicChart } from "@/components/charts/dynamic-chart";
@@ -22,7 +15,7 @@ import {
   toQueryFilters,
   type DashboardFilters,
 } from "@/components/dashboard/filter-bar";
-import { KpiCard } from "@/components/dashboard/kpi-card";
+import { HeroKpi, KpiCard } from "@/components/dashboard/kpi-card";
 import { useQuery } from "@/lib/client/use-query";
 import { formatValue } from "@/lib/utils";
 
@@ -94,6 +87,12 @@ export default function DashboardPage() {
     filters: qf,
   });
 
+  const avgTime = useQuery({
+    metrics: ["avg_delivery_days"],
+    dimensions: [timeDim],
+    filters: qf,
+  });
+
   const carriers = useQuery({
     metrics: ["delay_rate", "completed_count"],
     dimensions: ["carrier"],
@@ -117,6 +116,23 @@ export default function DashboardPage() {
   const kpiRow = kpis.data?.rows[0];
   const completed = Number(kpiRow?.completed_count ?? 0);
 
+  /* monthly trend series for the KPI sparklines */
+  const num = (v: unknown) => (typeof v === "number" ? v : 0);
+  const trends = useMemo(() => {
+    const vol = volume.data?.rows.map((r) => num(r.order_count)) ?? [];
+    const perf = performance.data?.rows ?? [];
+    const delivered = perf.map((r) => num(r.delivered_count));
+    const delayed = perf.map((r) => num(r.delayed_count));
+    const onTime = perf.map((r) => {
+      const total = num(r.delivered_count) + num(r.delayed_count) + num(r.exception_count);
+      return total > 0 ? num(r.delivered_count) / total : 0;
+    });
+    const days = avgTime.data?.rows.map((r) => num(r.avg_delivery_days)) ?? [];
+    return { vol, delivered, delayed, onTime, days };
+  }, [volume.data, performance.data, avgTime.data]);
+
+  const trendLabel = timeDim === "date:week" ? "weekly trend" : "12 month trend";
+
   const ask = (question: string) => router.push(`/chat?q=${encodeURIComponent(question)}`);
   const filterSuffix =
     describeFilters(filters) === PERIOD_LABELS.all ? "" : ` (scope: ${describeFilters(filters)})`;
@@ -125,28 +141,10 @@ export default function DashboardPage() {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[1280px] px-6 py-6">
         {/* header */}
-        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="font-display text-[26px] font-bold tracking-tight text-ink">
-              Operations dashboard
-            </h1>
-            <p className="mt-0.5 text-[13px] text-ink-3">
-              {meta
-                ? `${meta.rowCount} orders · ${meta.dateRange.from} → ${meta.dateRange.to} · source: ${meta.source}`
-                : "Loading dataset…"}
-            </p>
-          </div>
-          <button
-            className="btn-primary"
-            onClick={() =>
-              ask(
-                `Give me an executive summary of delivery performance${filterSuffix || " for the full year"} — key numbers, the biggest problem area, and one recommendation.`,
-              )
-            }
-          >
-            <Sparkles size={15} />
-            Ask AI about this view
-          </button>
+        <header className="mb-5">
+          <h1 className="font-display text-[26px] font-bold tracking-tight text-ink">
+            Operations dashboard
+          </h1>
         </header>
 
         {/* filters */}
@@ -154,18 +152,61 @@ export default function DashboardPage() {
           <FilterBar filters={filters} onChange={setFilters} meta={meta} />
         </div>
 
-        {/* KPI row */}
-        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+        {/* KPI bento — hero on-time gauge + four instrument cards */}
+        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-12">
+          <div className="col-span-2 md:col-span-4 md:row-span-2">
+            <HeroKpi
+              label="On time delivery rate"
+              loading={kpis.loading}
+              value={formatValue(kpiRow?.on_time_rate ?? null, "percent")}
+              pct={kpiRow ? Number(kpiRow.on_time_rate) : null}
+              trend={trends.onTime}
+              definition="delivered ÷ completed (delivered + delayed + exception). In transit and canceled orders are excluded because their outcome is unknown or void."
+              onAsk={() =>
+                ask(`Why is the on time rate what it is${filterSuffix}? Which regions or carriers drag it down?`)
+              }
+              breakdown={
+                kpiRow
+                  ? [
+                      {
+                        label: "delivered",
+                        value: formatValue(kpiRow.delivered_count, "number"),
+                        tone: "good",
+                      },
+                      {
+                        label: "delayed",
+                        value: formatValue(kpiRow.delayed_count, "number"),
+                        tone: "warn",
+                      },
+                      {
+                        label: "exception",
+                        value: String(
+                          completed -
+                            Number(kpiRow.delivered_count) -
+                            Number(kpiRow.delayed_count),
+                        ),
+                        tone: "bad",
+                      },
+                    ]
+                  : undefined
+              }
+            />
+          </div>
+          <div className="md:col-span-4">
           <KpiCard
             label="Total orders"
             icon={Package}
-            tone="brand"
+            tone="cyan"
             loading={kpis.loading}
             value={formatValue(kpiRow?.order_count ?? null, "number")}
             sub={filters.period === "all" ? "full year 2025" : PERIOD_LABELS[filters.period]}
             definition="Count of all orders matching the filters, regardless of status."
+            trend={trends.vol}
+            trendLabel={trendLabel}
             onAsk={() => ask(`How many orders did we receive${filterSuffix}? Break it down by month.`)}
           />
+          </div>
+          <div className="md:col-span-4">
           <KpiCard
             label="Delivered"
             icon={CheckCircle2}
@@ -177,9 +218,13 @@ export default function DashboardPage() {
                 ? `${formatValue(Number(kpiRow.delivered_count) / Number(kpiRow.order_count), "percent")} of all orders`
                 : undefined
             }
-            definition="Orders with status 'delivered' — arrived without a recorded delay."
+            definition="Orders with status delivered: arrived without a recorded delay."
+            trend={trends.delivered}
+            trendLabel={trendLabel}
             onAsk={() => ask(`How is our delivered-orders volume trending by month${filterSuffix}?`)}
           />
+          </div>
+          <div className="md:col-span-4">
           <KpiCard
             label="Delayed"
             icon={Clock3}
@@ -191,23 +236,15 @@ export default function DashboardPage() {
                 ? `${formatValue(Number(kpiRow.delayed_count) / completed, "percent")} of completed`
                 : undefined
             }
-            definition="Orders with status 'delayed' — they were eventually delivered, but late."
+            definition="Orders with status delayed: they were eventually delivered, but late."
+            trend={trends.delayed}
+            trendLabel={trendLabel}
             onAsk={() =>
               ask(`Show delayed orders by week${filterSuffix} and tell me which carrier causes most of them.`)
             }
           />
-          <KpiCard
-            label="On-time rate"
-            icon={TriangleAlert}
-            tone={kpiRow && Number(kpiRow.on_time_rate) < 0.8 ? "bad" : "good"}
-            loading={kpis.loading}
-            value={formatValue(kpiRow?.on_time_rate ?? null, "percent")}
-            sub="of completed orders"
-            definition="delivered ÷ completed (delivered + delayed + exception). In-transit and canceled orders are excluded because their outcome is unknown or void."
-            onAsk={() =>
-              ask(`Why is the on-time rate what it is${filterSuffix}? Which regions or carriers drag it down?`)
-            }
-          />
+          </div>
+          <div className="md:col-span-4">
           <KpiCard
             label="Avg delivery time"
             icon={Timer}
@@ -215,9 +252,12 @@ export default function DashboardPage() {
             loading={kpis.loading}
             value={formatValue(kpiRow?.avg_delivery_days ?? null, "days")}
             sub={`across ${completed || "…"} completed orders`}
-            definition="Mean of (delivery_date − order_date) across orders that have a delivery date — delivered, delayed and exception."
+            definition="Mean days from order date to delivery date across orders that have a delivery date (delivered, delayed and exception)."
+            trend={trends.days}
+            trendLabel={trendLabel}
             onAsk={() => ask(`Compare average delivery time by carrier${filterSuffix}. Who is slowest?`)}
           />
+          </div>
         </div>
 
         {/* charts */}
@@ -248,7 +288,7 @@ export default function DashboardPage() {
             className="col-span-12 lg:col-span-4 fade-up"
             title="Orders by region"
             subtitle="Share of order count"
-            askQuestion={`Compare regions${filterSuffix}: order volume, on-time rate and average delivery time.`}
+            askQuestion={`Compare regions${filterSuffix}: order volume, on time rate and average delivery time.`}
             onAsk={ask}
           >
             {regions.data ? (
@@ -292,7 +332,7 @@ export default function DashboardPage() {
           <ChartCard
             className="col-span-12 lg:col-span-6 fade-up"
             title="Delay rate by carrier"
-            subtitle="delayed ÷ completed orders — small carriers can swing on few orders"
+            subtitle="delayed ÷ completed orders. Small carriers can swing on few orders"
             definition="Delay rate = delayed ÷ completed orders per carrier. GLS ships only a handful of orders, so treat its rate with care."
             askQuestion={`Which carrier has the highest delay rate${filterSuffix}? Account for sample size.`}
             onAsk={ask}

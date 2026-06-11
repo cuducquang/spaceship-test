@@ -58,8 +58,8 @@ export function ForecastSeriesChart({
       <ComposedChart data={data} margin={{ left: 4, right: 16 }}>
         <defs>
           <linearGradient id="fc-band" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6d5dd3" stopOpacity={0.22} />
-            <stop offset="100%" stopColor="#6d5dd3" stopOpacity={0.05} />
+            <stop offset="0%" stopColor="#6366f1" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity={0.04} />
           </linearGradient>
         </defs>
         <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 6" />
@@ -91,19 +91,19 @@ export function ForecastSeriesChart({
           dataKey="actual"
           name="Actual"
           type="monotone"
-          stroke="#0e7c66"
+          stroke="#0891b2"
           strokeWidth={2.4}
-          dot={{ r: 2.5, strokeWidth: 0, fill: "#0e7c66" }}
+          dot={{ r: 2.5, strokeWidth: 0, fill: "#0891b2" }}
           connectNulls={false}
         />
         <Line
           dataKey="forecast"
           name="Forecast"
           type="monotone"
-          stroke="#6d5dd3"
+          stroke="#6366f1"
           strokeWidth={2.4}
           strokeDasharray="6 4"
-          dot={{ r: 3, strokeWidth: 0, fill: "#6d5dd3" }}
+          dot={{ r: 3, strokeWidth: 0, fill: "#6366f1" }}
           connectNulls
         />
       </ComposedChart>
@@ -121,7 +121,7 @@ export function ForecastBlock({ result }: { result: ForecastResult }) {
       <div className="border-b border-border px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="font-display text-[14px] font-semibold text-ink">
-            Demand forecast — {result.target.used.value ?? "all orders"}{" "}
+            Demand forecast: {result.target.used.value ?? "all orders"}{" "}
             <span className="font-normal text-ink-3">({metricLabel}/month)</span>
           </h4>
           <span className="tag border-violet/30 bg-violet/10 text-violet">
@@ -129,7 +129,7 @@ export function ForecastBlock({ result }: { result: ForecastResult }) {
           </span>
         </div>
         {result.target.fallback_reason && (
-          <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11.5px] leading-relaxed text-amber-800">
+          <p className="mt-2 rounded-lg border border-warn/25 bg-warn/10 px-2.5 py-1.5 text-[11.5px] leading-relaxed text-warn">
             {result.target.fallback_reason}
           </p>
         )}
@@ -147,19 +147,19 @@ export function ForecastBlock({ result }: { result: ForecastResult }) {
           level
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-lg bg-white/70 px-2 py-2">
+          <div className="rounded-lg bg-panel/70 px-2 py-2">
             <div className="font-display text-[18px] font-bold text-ink">
               {formatValue(result.inventory.total_forecast_units, "number")}
             </div>
             <div className="text-[10.5px] text-ink-3">forecast {metricLabel}</div>
           </div>
-          <div className="rounded-lg bg-white/70 px-2 py-2">
+          <div className="rounded-lg bg-panel/70 px-2 py-2">
             <div className="font-display text-[18px] font-bold text-ink">
               +{formatValue(result.inventory.safety_stock_units, "number")}/mo
             </div>
             <div className="text-[10.5px] text-ink-3">safety stock</div>
           </div>
-          <div className="rounded-lg bg-white/70 px-2 py-2">
+          <div className="rounded-lg bg-panel/70 px-2 py-2">
             <div className="font-display text-[18px] font-bold text-brand">
               {formatValue(result.inventory.recommended_total_units, "number")}
             </div>
@@ -168,7 +168,7 @@ export function ForecastBlock({ result }: { result: ForecastResult }) {
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {result.inventory.per_month.map((m) => (
-            <span key={m.month} className="tag bg-white/70">
+            <span key={m.month} className="tag bg-panel/70">
               {monthShort(m.month)}: <strong>{m.recommended}</strong>
             </span>
           ))}
@@ -331,13 +331,13 @@ export function PayloadBlock({
 
     case "knowledge_write":
       return (
-        <div className="mt-2 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5 text-[12px] text-emerald-900">
+        <div className="mt-2 flex items-start gap-2 rounded-xl border border-good/30 bg-good/10 px-3 py-2.5 text-[12px] text-good">
           <NotebookPen size={13} className="mt-0.5 shrink-0" />
           <div>
             <span className="font-semibold">
               Knowledge {payload.mode === "append" ? "added to" : "saved in"} {payload.path}
             </span>
-            <div className="mt-0.5 [&_.prose-chat]:text-[12px] [&_.prose-chat]:text-emerald-800/90">
+            <div className="mt-0.5 [&_.prose-chat]:text-[12px] [&_.prose-chat]:!text-good/90">
               <Markdown>{payload.content}</Markdown>
             </div>
           </div>

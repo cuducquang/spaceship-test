@@ -184,18 +184,113 @@ export function accuracyF1(yTrue: number[], scores: number[], threshold = 0.5) {
   return { accuracy, f1 };
 }
 
+/** Out-of-fold ROC curve, downsampled to ≤ maxPoints for the overlay chart. */
+export function rocCurve(
+  yTrue: number[],
+  scores: number[],
+  maxPoints = 40,
+): { fpr: number; tpr: number }[] {
+  const pairs = yTrue
+    .map((yv, i) => ({ y: yv, s: scores[i] }))
+    .filter((p) => Number.isFinite(p.s))
+    .sort((a, b) => b.s - a.s);
+  const pos = pairs.reduce((a, p) => a + p.y, 0);
+  const neg = pairs.length - pos;
+  if (pos === 0 || neg === 0) return [];
+  const points: { fpr: number; tpr: number }[] = [{ fpr: 0, tpr: 0 }];
+  let tp = 0;
+  let fp = 0;
+  for (let i = 0; i < pairs.length; i++) {
+    if (pairs[i].y === 1) tp++;
+    else fp++;
+    // emit at score boundaries only (proper step curve under ties)
+    if (i + 1 < pairs.length && pairs[i + 1].s === pairs[i].s) continue;
+    points.push({ fpr: fp / neg, tpr: tp / pos });
+  }
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
+  let out = points;
+  if (points.length > maxPoints) {
+    const step = (points.length - 1) / (maxPoints - 1);
+    out = Array.from({ length: maxPoints }, (_, i) => points[Math.round(i * step)]);
+  }
+  return out.map((p) => ({ fpr: r3(p.fpr), tpr: r3(p.tpr) }));
+}
+
+/** Confusion counts + derived metrics over thresholds 0 → 1 (step .05), out-of-fold. */
+export function thresholdSweep(yTrue: number[], scores: number[]): ThresholdPoint[] {
+  const valid = yTrue
+    .map((yv, i) => ({ y: yv, s: scores[i] }))
+    .filter((p) => Number.isFinite(p.s));
+  const out: ThresholdPoint[] = [];
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
+  for (let t = 0; t <= 20; t++) {
+    const threshold = t / 20;
+    let tp = 0,
+      fp = 0,
+      tn = 0,
+      fn = 0;
+    for (const p of valid) {
+      const pred = p.s >= threshold ? 1 : 0;
+      if (pred === 1 && p.y === 1) tp++;
+      else if (pred === 1) fp++;
+      else if (p.y === 1) fn++;
+      else tn++;
+    }
+    const precision = tp / Math.max(1, tp + fp);
+    const recall = tp / Math.max(1, tp + fn);
+    out.push({
+      threshold,
+      tp,
+      fp,
+      tn,
+      fn,
+      accuracy: r3((tp + tn) / Math.max(1, valid.length)),
+      precision: r3(precision),
+      recall: r3(recall),
+      f1: r3(precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall)),
+    });
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------------ */
 /* models                                                               */
 /* ------------------------------------------------------------------ */
 
-export const MODEL_KINDS = ["dummy", "logreg", "tree", "knn"] as const;
+export const MODEL_KINDS = ["dummy", "logreg", "nb", "tree", "forest", "knn"] as const;
 export type ModelKind = (typeof MODEL_KINDS)[number];
 
 export const MODEL_LABELS: Record<ModelKind, string> = {
   dummy: "Baseline (prior)",
   logreg: "Logistic regression",
+  nb: "Naive Bayes",
   tree: "Decision tree",
-  knn: "k-nearest neighbors",
+  forest: "Random forest",
+  knn: "k nearest neighbors",
+};
+
+/** Tunable hyperparameters; every field optional, defaults preserve prior behavior. */
+export interface ModelParams {
+  logreg?: { l2?: number; epochs?: number };
+  tree?: { max_depth?: number; min_leaf?: number };
+  forest?: { trees?: number; max_depth?: number };
+  knn?: { k?: number };
+}
+
+/**
+ * Static trade-off traits per family (the Dataiku-style axes that don't come
+ * from training): interpretability and typical fit cost on a 1–5 scale.
+ */
+export const MODEL_TRAITS: Record<
+  ModelKind,
+  { family: string; interpretability: 1 | 2 | 3 | 4 | 5; speed: 1 | 2 | 3 | 4 | 5 }
+> = {
+  dummy: { family: "baseline", interpretability: 5, speed: 5 },
+  logreg: { family: "linear", interpretability: 5, speed: 4 },
+  nb: { family: "probabilistic", interpretability: 4, speed: 5 },
+  tree: { family: "tree", interpretability: 4, speed: 4 },
+  forest: { family: "ensemble", interpretability: 2, speed: 2 },
+  knn: { family: "instance", interpretability: 3, speed: 1 },
 };
 
 interface FittedModel {
@@ -208,7 +303,12 @@ function fitDummy(_X: number[][], y: number[]): FittedModel {
   return { predictProba: (X) => X.map(() => p) };
 }
 
-function fitLogReg(X: number[][], y: number[], names: string[]): FittedModel {
+function fitLogReg(
+  X: number[][],
+  y: number[],
+  names: string[],
+  params?: ModelParams["logreg"],
+): FittedModel {
   const n = X.length;
   const d = X[0]?.length ?? 0;
   const w = new Array<number>(d).fill(0);
@@ -218,8 +318,8 @@ function fitLogReg(X: number[][], y: number[], names: string[]): FittedModel {
   const wPos = pos > 0 ? n / (2 * pos) : 1;
   const wNeg = neg > 0 ? n / (2 * neg) : 1;
   const lr = 0.1;
-  const l2 = 0.01;
-  const epochs = 400;
+  const l2 = params?.l2 ?? 0.01;
+  const epochs = params?.epochs ?? 400;
 
   for (let epoch = 0; epoch < epochs; epoch++) {
     const gw = new Array<number>(d).fill(0);
@@ -263,11 +363,18 @@ interface TreeNode {
   proba?: number;
 }
 
-function fitTree(X: number[][], y: number[], names: string[]): FittedModel {
+function fitTree(
+  X: number[][],
+  y: number[],
+  names: string[],
+  params?: ModelParams["tree"],
+  /** forest mode: per-split random feature subset of this size, using rng */
+  subspace?: { size: number; rng: () => number },
+): FittedModel {
   const n = X.length;
   const d = X[0]?.length ?? 0;
-  const maxDepth = 4;
-  const minLeaf = Math.max(5, Math.floor(n / 50));
+  const maxDepth = params?.max_depth ?? 4;
+  const minLeaf = params?.min_leaf ?? Math.max(5, Math.floor(n / 50));
   const importances = new Array<number>(d).fill(0);
 
   const gini = (pos: number, total: number) => {
@@ -296,7 +403,19 @@ function fitTree(X: number[][], y: number[], names: string[]): FittedModel {
     const parentGini = gini(pos, total);
     let best: { j: number; t: number; gain: number; left: number[]; right: number[] } | null = null;
 
-    for (let j = 0; j < d; j++) {
+    let candidates: number[];
+    if (subspace && subspace.size < d) {
+      const order = Array.from({ length: d }, (_, j) => j);
+      for (let i = d - 1; i > 0; i--) {
+        const r = Math.floor(subspace.rng() * (i + 1));
+        [order[i], order[r]] = [order[r], order[i]];
+      }
+      candidates = order.slice(0, subspace.size);
+    } else {
+      candidates = Array.from({ length: d }, (_, j) => j);
+    }
+
+    for (const j of candidates) {
       for (const t of thresholdsFor(idx, j)) {
         const left: number[] = [];
         const right: number[] = [];
@@ -349,7 +468,133 @@ function fitTree(X: number[][], y: number[], names: string[]): FittedModel {
   };
 }
 
-function fitKnn(X: number[][], y: number[]): FittedModel {
+/**
+ * Gaussian Naive Bayes over the encoded matrix. One-hot columns are treated
+ * as Gaussians too — a standard simplification that behaves like a smoothed
+ * Bernoulli NB on indicator features.
+ */
+function fitNaiveBayes(X: number[][], y: number[], names: string[]): FittedModel {
+  const d = X[0]?.length ?? 0;
+  const n = X.length;
+  const pos = y.reduce((a, b) => a + b, 0);
+  const priorPos = Math.log((pos + 1) / (n + 2));
+  const priorNeg = Math.log((n - pos + 1) / (n + 2));
+
+  const stats = (cls: number) => {
+    const mean = new Array<number>(d).fill(0);
+    const varr = new Array<number>(d).fill(0);
+    let count = 0;
+    for (let i = 0; i < n; i++) {
+      if (y[i] !== cls) continue;
+      count++;
+      for (let j = 0; j < d; j++) mean[j] += X[i][j];
+    }
+    if (count > 0) for (let j = 0; j < d; j++) mean[j] /= count;
+    for (let i = 0; i < n; i++) {
+      if (y[i] !== cls) continue;
+      for (let j = 0; j < d; j++) varr[j] += (X[i][j] - mean[j]) ** 2;
+    }
+    const smoothing = 1e-3;
+    for (let j = 0; j < d; j++) varr[j] = varr[j] / Math.max(1, count - 1) + smoothing;
+    return { mean, varr };
+  };
+
+  const sPos = stats(1);
+  const sNeg = stats(0);
+
+  const logLikelihood = (x: number[], s: { mean: number[]; varr: number[] }) => {
+    let ll = 0;
+    for (let j = 0; j < d; j++) {
+      ll += -0.5 * Math.log(2 * Math.PI * s.varr[j]) - ((x[j] - s.mean[j]) ** 2) / (2 * s.varr[j]);
+    }
+    return ll;
+  };
+
+  // per-feature class-mean separation as an interpretability artifact
+  const items = names
+    .map((feature, j) => ({
+      feature,
+      weight:
+        Math.round(
+          ((sPos.mean[j] - sNeg.mean[j]) / Math.sqrt((sPos.varr[j] + sNeg.varr[j]) / 2)) * 1000,
+        ) / 1000,
+    }))
+    .sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
+    .slice(0, 10);
+
+  return {
+    predictProba: (Xt) =>
+      Xt.map((x) => {
+        const lp = priorPos + logLikelihood(x, sPos);
+        const ln = priorNeg + logLikelihood(x, sNeg);
+        const m = Math.max(lp, ln);
+        const ep = Math.exp(lp - m);
+        const en = Math.exp(ln - m);
+        return ep / (ep + en);
+      }),
+    details: { kind: "coefficients", items },
+  };
+}
+
+/** Random forest: bootstrap-bagged CART trees with √d random features per split. */
+function fitForest(
+  X: number[][],
+  y: number[],
+  names: string[],
+  params?: ModelParams["forest"],
+): FittedModel {
+  const n = X.length;
+  const d = X[0]?.length ?? 0;
+  const nTrees = params?.trees ?? 40;
+  const maxDepth = params?.max_depth ?? 6;
+  const subspaceSize = Math.max(1, Math.round(Math.sqrt(d)));
+  const trees: FittedModel[] = [];
+  const importanceSum = new Array<number>(d).fill(0);
+
+  for (let t = 0; t < nTrees; t++) {
+    const rng = mulberry32(7919 + t * 131);
+    const idx = Array.from({ length: n }, () => Math.floor(rng() * n)); // bootstrap
+    const Xb = idx.map((i) => X[i]);
+    const yb = idx.map((i) => y[i]);
+    const tree = fitTree(
+      Xb,
+      yb,
+      names,
+      { max_depth: maxDepth, min_leaf: Math.max(2, Math.floor(n / 100)) },
+      { size: subspaceSize, rng },
+    );
+    trees.push(tree);
+    tree.details?.items.forEach((item) => {
+      const j = names.indexOf(item.feature);
+      if (j >= 0) importanceSum[j] += item.weight;
+    });
+  }
+
+  const totalImp = importanceSum.reduce((a, b) => a + b, 0) || 1;
+  return {
+    predictProba: (Xt) => {
+      const acc = new Array<number>(Xt.length).fill(0);
+      for (const tree of trees) {
+        const p = tree.predictProba(Xt);
+        for (let i = 0; i < Xt.length; i++) acc[i] += p[i];
+      }
+      return acc.map((v) => v / trees.length);
+    },
+    details: {
+      kind: "importances",
+      items: names
+        .map((feature, j) => ({
+          feature,
+          weight: Math.round((importanceSum[j] / totalImp) * 1000) / 1000,
+        }))
+        .filter((x) => x.weight > 0)
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 10),
+    },
+  };
+}
+
+function fitKnn(X: number[][], y: number[], params?: ModelParams["knn"]): FittedModel {
   // subsample large training sets to keep prediction O(n·m) reasonable
   const cap = 1500;
   let trainX = X;
@@ -359,7 +604,7 @@ function fitKnn(X: number[][], y: number[]): FittedModel {
     trainX = idx.map((i) => X[i]);
     trainY = idx.map((i) => y[i]);
   }
-  const k = Math.min(9, Math.max(3, trainX.length - 1));
+  const k = Math.min(params?.k ?? 9, Math.max(3, trainX.length - 1));
 
   return {
     predictProba: (Xt) =>
@@ -387,16 +632,26 @@ function fitKnn(X: number[][], y: number[]): FittedModel {
   };
 }
 
-function fitModel(kind: ModelKind, X: number[][], y: number[], names: string[]): FittedModel {
+function fitModel(
+  kind: ModelKind,
+  X: number[][],
+  y: number[],
+  names: string[],
+  params?: ModelParams,
+): FittedModel {
   switch (kind) {
     case "dummy":
       return fitDummy(X, y);
     case "logreg":
-      return fitLogReg(X, y, names);
+      return fitLogReg(X, y, names, params?.logreg);
+    case "nb":
+      return fitNaiveBayes(X, y, names);
     case "tree":
-      return fitTree(X, y, names);
+      return fitTree(X, y, names, params?.tree);
+    case "forest":
+      return fitForest(X, y, names, params?.forest);
     case "knn":
-      return fitKnn(X, y);
+      return fitKnn(X, y, params?.knn);
   }
 }
 
@@ -411,6 +666,21 @@ export interface BenchmarkRequest {
   features: FeatureSpec[];
   models: ModelKind[];
   folds: number;
+  /** Optional hyperparameter overrides per model family. */
+  params?: ModelParams;
+}
+
+/** Confusion counts + derived metrics at one decision threshold (out-of-fold). */
+export interface ThresholdPoint {
+  threshold: number;
+  tp: number;
+  fp: number;
+  tn: number;
+  fn: number;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1: number;
 }
 
 export interface ModelReport {
@@ -422,6 +692,12 @@ export interface ModelReport {
   f1: number;
   fit_ms: number;
   details?: FittedModel["details"];
+  /** Out-of-fold ROC curve, downsampled (~40 points), for overlay charts. */
+  roc?: { fpr: number; tpr: number }[];
+  /** Out-of-fold confusion sweep for the threshold slider (0 → 1, step .05). */
+  thresholds?: ThresholdPoint[];
+  /** Trade-off traits for the scatter (static per family). */
+  traits: { family: string; interpretability: number; speed: number };
 }
 
 export interface BenchmarkResult {
@@ -479,6 +755,7 @@ export function runBenchmark(req: BenchmarkRequest): BenchmarkResult {
     const aucs: number[] = [];
     const accs: number[] = [];
     const f1s: number[] = [];
+    const oof = new Array<number>(rows.length).fill(NaN);
     const t0 = Date.now();
 
     for (let f = 0; f < k; f++) {
@@ -492,8 +769,9 @@ export function runBenchmark(req: BenchmarkRequest): BenchmarkResult {
       const Xtest = testIdx.map((i) => encoder.encode(rows[i]));
       const ytest = testIdx.map((i) => y[i]);
 
-      const model = fitModel(kind, Xtrain, ytrain, encoder.names);
+      const model = fitModel(kind, Xtrain, ytrain, encoder.names, req.params);
       const scores = model.predictProba(Xtest);
+      testIdx.forEach((rowIdx, s) => (oof[rowIdx] = scores[s]));
       aucs.push(rocAuc(ytest, scores));
       const { accuracy, f1 } = accuracyF1(ytest, scores);
       accs.push(accuracy);
@@ -502,7 +780,13 @@ export function runBenchmark(req: BenchmarkRequest): BenchmarkResult {
 
     // refit on all rows for explanation artifacts
     const fullEncoder = buildEncoder(rows, req.features);
-    const fullModel = fitModel(kind, rows.map((r) => fullEncoder.encode(r)), y, fullEncoder.names);
+    const fullModel = fitModel(
+      kind,
+      rows.map((r) => fullEncoder.encode(r)),
+      y,
+      fullEncoder.names,
+      req.params,
+    );
 
     const mean = (a: number[]) => a.reduce((x, b) => x + b, 0) / a.length;
     const aucMean = mean(aucs);
@@ -517,6 +801,9 @@ export function runBenchmark(req: BenchmarkRequest): BenchmarkResult {
       f1: Math.round(mean(f1s) * 1000) / 1000,
       fit_ms: Date.now() - t0,
       details: fullModel.details,
+      roc: rocCurve(y, oof),
+      thresholds: thresholdSweep(y, oof),
+      traits: MODEL_TRAITS[kind],
     });
   }
 

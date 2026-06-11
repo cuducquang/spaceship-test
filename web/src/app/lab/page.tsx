@@ -14,7 +14,7 @@ export default function LabPage() {
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <div className="aurora" />
       </div>
-      <div className="mx-auto max-w-[980px] px-6 py-6 pb-16">
+      <div className="mx-auto max-w-[1180px] px-6 py-6 pb-16">
         <header className="mb-5">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display flex items-center gap-2.5 text-[26px] font-bold tracking-tight text-ink">
@@ -23,27 +23,10 @@ export default function LabPage() {
               </span>
               ML Lab
             </h1>
-            <span className="terminal flex items-center gap-2 rounded-xl px-3.5 py-2 text-[11px]">
-              <span className="text-emerald-300">$</span>
-              <span className="text-white/70">offline_study</span>
-              <span className="text-white/30">·</span>
-              AUC <span className="font-bold text-amber-300">0.465</span>
-              <span className="text-white/30">·</span>
-              p <span className="font-bold text-amber-300">0.68</span>
-              <span className="text-white/30">·</span>
-              <span className="font-bold text-rose-300">NO-SHIP</span>
-              <span className="caret-blink text-emerald-300">▍</span>
+            <span className="tag border-warn/30 bg-warn/10 !py-1.5 text-warn" title="The offline research study scored AUC 0.465 (chance is 0.5) with permutation p 0.68, so per order late risk predictions are not shipped.">
+              Research verdict: late deliveries are not predictable from this data (AUC 0.465, p 0.68), so no risk scoring is shipped
             </span>
           </div>
-          <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-3">
-            Train and benchmark late-delivery classifiers right here — on the bundled dataset or
-            your own CSV — with leakage-safe cross-validation. Each model fits live, one after
-            another. The AI analyst can run this same benchmark in chat (the{" "}
-            <code className="rounded bg-panel-2 px-1 py-0.5 text-[11px]">evaluate_ml_models</code>{" "}
-            tool); what stays unshipped — per the notebook's pre-registered decision — is
-            per-order risk prediction. The Notebook tab is that full offline study, rendered
-            block by block.
-          </p>
         </header>
 
         {/* tabs */}
@@ -60,11 +43,11 @@ export default function LabPage() {
               className={cn(
                 "flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all",
                 tab === t.id
-                  ? "bg-navy text-white shadow-md shadow-navy/20"
+                  ? "bg-brand-2 text-white shadow-md shadow-brand-2/25"
                   : "bg-panel text-ink-2 hover:bg-panel-2",
               )}
             >
-              <t.icon size={14} className={tab === t.id ? "text-emerald-300" : ""} />
+              <t.icon size={14} className={tab === t.id ? "text-cyan-200" : ""} />
               {t.label}
             </button>
           ))}

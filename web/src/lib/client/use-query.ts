@@ -38,12 +38,20 @@ export function useQuery(spec: QuerySpec | null) {
   useEffect(() => {
     latest.current = specKey;
     if (!specKey) {
-      setData(null);
-      setLoading(false);
+      // defer so the state reset never lands synchronously inside the effect
+      queueMicrotask(() => {
+        if (latest.current === specKey) {
+          setData(null);
+          setLoading(false);
+        }
+      });
       return;
     }
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      if (latest.current !== specKey) return;
+      setLoading(true);
+      setError(null);
+    });
     fetchQuery(JSON.parse(specKey))
       .then((result) => {
         if (latest.current === specKey) {

@@ -38,7 +38,7 @@ export function canvasTitleOf(payload: ToolUiPayload): string {
     case "chart":
       return payload.chart.title;
     case "forecast":
-      return `Forecast — ${payload.result.target.used.value ?? "all orders"}`;
+      return `Forecast: ${payload.result.target.used.value ?? "all orders"}`;
     case "image":
       return payload.prompt.length > 60 ? `${payload.prompt.slice(0, 60)}…` : payload.prompt;
     default:

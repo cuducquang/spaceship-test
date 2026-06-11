@@ -96,7 +96,7 @@ export function CanvasPanel({
   }, [focusedKey]);
 
   return (
-    <aside className="flex h-full w-[400px] shrink-0 flex-col border-l border-border bg-bg-2/50">
+    <aside className="flex h-full w-[400px] shrink-0 flex-col border-l border-border bg-bg-2/50 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-40 max-lg:w-[min(400px,94vw)] max-lg:bg-bg-2 max-lg:shadow-[-24px_0_60px_rgba(0,0,0,0.55)]">
       {/* header */}
       <div className="flex items-center gap-2 border-b border-border bg-panel/75 px-3.5 py-2.5 backdrop-blur">
         <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-violet to-cyan shadow-sm">
@@ -122,7 +122,7 @@ export function CanvasPanel({
             onClick={() => setFilter(k)}
             className={cn(
               "rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors",
-              filter === k ? "bg-navy text-white" : "text-ink-3 hover:bg-panel-2 hover:text-ink-2",
+              filter === k ? "bg-brand-2 text-white" : "text-ink-3 hover:bg-panel-2 hover:text-ink-2",
             )}
           >
             {k} {counts[k] ? `· ${counts[k]}` : ""}
@@ -183,7 +183,7 @@ export function CanvasPanel({
       {/* zoom dialog */}
       <Dialog.Root open={zoomed !== null} onOpenChange={(o) => !o && setZoomed(null)}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-navy/40 backdrop-blur-sm" />
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
           <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(960px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-panel p-5 shadow-2xl">
             {zoomed && (
               <>

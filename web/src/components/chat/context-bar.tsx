@@ -46,12 +46,12 @@ export function ContextBar({
               prompt + tools + history + results).
             </p>
             <p>
-              At <strong>{fmtK(COMPACT_AT)}</strong> the conversation auto-compacts: earlier
+              At <strong>{fmtK(COMPACT_AT)}</strong> the conversation compacts automatically: earlier
               turns are summarized by a small model so the session can continue with full
               context awareness.
             </p>
             <p className="text-ink-3">
-              Session total — in: {fmtK(totalIn)} · out: {fmtK(totalOut)}
+              Session total · in {fmtK(totalIn)} · out {fmtK(totalOut)}
             </p>
           </div>
         }
@@ -83,7 +83,7 @@ export function ContextBar({
           className={cn(
             "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-semibold transition-all",
             pct >= 90
-              ? "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"
+              ? "border-bad/40 bg-bad/10 text-bad hover:bg-bad/20"
               : "border-border bg-panel text-ink-2 hover:border-violet hover:text-violet",
           )}
           title="Summarize earlier turns to free context"

@@ -115,7 +115,9 @@ export default function ForecastPage() {
   };
 
   useEffect(() => {
-    if (distinct && !result && !loading) void run();
+    if (!distinct || result || loading) return;
+    const t = setTimeout(() => void run(), 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [distinct]);
 
@@ -155,11 +157,6 @@ export default function ForecastPage() {
               </span>
               Forecast studio
             </h1>
-            <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-ink-3">
-              The same deterministic engine the AI analyst calls — monthly history, backtested
-              method selection, an uncertainty band, and an inventory recommendation at a 95
-              percent service level.
-            </p>
           </div>
           <div className="flex gap-1.5">
             <span className="tag">
@@ -302,7 +299,7 @@ export default function ForecastPage() {
               {loading ? "Computing…" : "Run forecast"}
             </button>
             <p className="text-[10.5px] leading-relaxed text-ink-3">
-              SKU series are sparse (≤3 orders each) — SKU requests fall back to the SKU&apos;s
+              SKU series are sparse (≤3 orders each), so SKU requests fall back to the SKU&apos;s
               category, and the result says so.
             </p>
           </aside>
@@ -310,7 +307,7 @@ export default function ForecastPage() {
           {/* ------------------------------ results stage ------------------------------ */}
           <section className="min-w-0 space-y-4">
             {error && (
-              <div className="card border-rose-200 bg-rose-50/70 p-4 text-[13px] text-rose-700">
+              <div className="card border-bad/30 bg-bad/10 p-4 text-[13px] text-bad">
                 {error}
               </div>
             )}
@@ -382,7 +379,7 @@ export default function ForecastPage() {
                     </span>
                   </div>
                   {result.target.fallback_reason && (
-                    <p className="mx-4 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11.5px] leading-relaxed text-amber-800">
+                    <p className="mx-4 mt-3 rounded-lg border border-warn/25 bg-warn/10 px-3 py-2 text-[11.5px] leading-relaxed text-warn">
                       {result.target.fallback_reason}
                     </p>
                   )}
@@ -397,7 +394,7 @@ export default function ForecastPage() {
                     <div className="card fade-up p-4">
                       <div className="mb-3 flex items-center gap-1.5 text-[12.5px] font-bold text-ink">
                         <FlaskConical size={13} className="text-violet" />
-                        Backtest — MAE on the last {result.backtest.holdout_months} months
+                        Backtest: MAE on the last {result.backtest.holdout_months} months
                       </div>
                       <div className="space-y-2.5">
                         {podium.map((c) => (
@@ -433,7 +430,7 @@ export default function ForecastPage() {
                   <div className="card fade-up p-4">
                     <div className="mb-3 flex items-center gap-1.5 text-[12.5px] font-bold text-ink">
                       <Boxes size={13} className="text-brand" />
-                      Inventory plan — forecast + safety stock
+                      Inventory plan: forecast + safety stock
                     </div>
                     <div className="space-y-2">
                       {result.inventory.per_month.map((m) => (

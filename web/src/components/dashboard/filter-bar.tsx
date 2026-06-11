@@ -140,7 +140,7 @@ export function FilterBar({
         <button
           key={chip.key}
           onClick={() => onChange({ ...filters, [chip.key]: "" })}
-          className="tag border-brand-2/40 bg-brand-soft text-brand transition-colors hover:border-bad hover:bg-rose-50 hover:text-bad"
+          className="tag border-brand-2/40 bg-brand-soft text-brand transition-colors hover:border-bad/50 hover:bg-bad/10 hover:text-bad"
         >
           {chip.label}
           <X size={11} />
