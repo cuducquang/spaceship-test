@@ -2,7 +2,7 @@
 
 Spaceship is an analytics workspace for a logistics client. It pairs a traditional KPI dashboard with **Atlas**, an AI analyst that interprets natural language questions, routes them through validated analytical tools, and explains every answer with the applied filters, the query plan, the metric definitions, and the underlying data.
 
-**Live demo:** add your deployment URL here
+**Live demo:** https://spaceship-test-ten.vercel.app/
 
 **Stack:** Next.js 16, TypeScript, Supabase, Claude for the agent (Opus 4.8, Opus 4.6, Sonnet 4.6), Gemini for image generation (3 Pro Image, 3.1 Flash Image, 2.5 Flash Image), Recharts, Tailwind CSS v4
 
