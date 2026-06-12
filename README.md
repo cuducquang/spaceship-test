@@ -14,7 +14,7 @@ Spaceship is an analytics workspace for a logistics client. It pairs a tradition
 * **Model controls in the status bar.** The footer selects the Claude model that powers the agent and the Gemini model that renders images; the choice persists server side and applies everywhere instantly.
 * **Long sessions.** A context usage meter and automatic conversation compaction keep multi turn sessions healthy.
 * **ML Lab.** The research notebook rendered block by block, plus in-app model training and benchmarking — six model families with tunable hyperparameters, a performance-vs-interpretability trade-off map, out-of-fold ROC curves, and a decision-threshold explorer with a live confusion matrix — including on a CSV you upload.
-* **Reviewer sign-in.** A login gate (hardcoded demo credentials, signed HttpOnly session cookie, enforced by the Next 16 proxy) satisfies the brief's "provide test credentials" clause.
+* **Reviewer sign-in.** A login gate (credentials configured via environment variables, signed HttpOnly session cookie, enforced by the Next 16 proxy) satisfies the brief's "provide test credentials" clause.
 * **Responsive UI.** A light "control tower" visual system with dark mission chrome; every page works down to phone widths.
 
 ## 1. Getting started
@@ -31,6 +31,7 @@ Environment variables:
 * `ANTHROPIC_API_KEY` (required): powers the Claude agent and the compaction summarizer.
 * `GEMINI_API_KEY` (required): powers the image generation tool.
 * `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (required for persistence): the database for orders, knowledge files, and chat history.
+* `REVIEWER_USERNAME` and `REVIEWER_PASSWORD` (required): the reviewer account; the app is fully gated until both are set.
 * `ANTHROPIC_MODEL` (optional): default agent model, defaults to `claude-opus-4-8`.
 * `AUTH_SECRET` (optional): overrides the demo session-signing secret in production.
 * `GEMINI_IMAGE_MODEL` (optional): image model, defaults to `gemini-3-pro-image`.
@@ -43,7 +44,7 @@ npm run lint    # eslint (passes clean)
 npm run build   # production build
 ```
 
-Sign in with `reviewer` / `spaceship2026`. Every route (pages and APIs except `/api/health` and the auth endpoints) requires the session; signing out is in the header.
+Sign in with the reviewer credentials provided separately. Every route (pages and APIs except `/api/health` and the auth endpoints) requires the session; signing out is in the header.
 
 The `/api/health` endpoint reports which data drivers are active at any time.
 
@@ -64,7 +65,7 @@ The Next.js app lives in the `web` subdirectory, so one project setting is essen
 
 1. In the Vercel project settings, set **Root Directory** to `web`. Without it the build fails immediately because the repository root has no `package.json`.
 2. Keep the framework preset on Next.js and the Node.js version on 22.x; install and build commands stay default (`npm install`, `next build`).
-3. Add the environment variables for Production and Preview: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and `AUTH_SECRET` (any long random string; signs the login session).
+3. Add the environment variables for Production and Preview: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `REVIEWER_USERNAME`, `REVIEWER_PASSWORD`, and `AUTH_SECRET` (any long random string; signs the login session).
 4. Redeploy. The app degrades gracefully if some variables are missing (the dataset falls back to the bundled CSV and knowledge becomes ephemeral), but the agent itself needs `ANTHROPIC_API_KEY` and image generation needs `GEMINI_API_KEY`.
 
 The serverless bundle ships `web/data` through `outputFileTracingIncludes`, so the CSV fallback, the knowledge seeds, and the notebook all work on Vercel without extra configuration.
@@ -87,7 +88,7 @@ The expected flow from the brief is implemented literally:
 3. **In memory computation over 400 rows.** The dataset is small and read only, so computing in the application layer keeps every number unit testable and identical across Supabase and CSV modes. Supabase remains the system of record once seeded.
 4. **Claude thinks, Gemini draws.** The agent loop is implemented over the Anthropic Messages API with tool use (`web/src/lib/agent/loop.ts`); the footer picks which Claude model powers it. Gemini participates only through the `generate_image` tool, with its own model selector in the same status bar. Both choices persist server side (`/api/settings`) so they survive reloads and apply to every client.
 5. **Stateless agent API, durable conversations.** Each turn sends the prior plain text turns after the compaction boundary, plus an optional summary. Conversations and messages persist in Supabase through full CRUD endpoints, and each conversation lives at `/chat/{id}`.
-6. **Demo authentication, real enforcement.** One hardcoded reviewer account (the data is mock, so a user table would be theater) — but the enforcement path is production-shaped: an HMAC-signed expiring session cookie (HttpOnly, SameSite=Lax) issued by `/api/auth/login` and verified in `src/proxy.ts` (Next 16's middleware successor) for every page and API route, with `?next=` deep-link redirects.
+6. **Demo authentication, real enforcement.** One reviewer account configured through environment variables (the data is mock, so a user table would be theater) — but the enforcement path is production-shaped: an HMAC-signed expiring session cookie (HttpOnly, SameSite=Lax) issued by `/api/auth/login` and verified in `src/proxy.ts` (Next 16's middleware successor) for every page and API route, with `?next=` deep-link redirects.
 7. **Compaction for long sessions.** The context bar tracks the real prompt size of the last model call. At 24k tokens the conversation compacts automatically: `claude-haiku-4-5` merges earlier turns into a structured briefing (goals, exact figures, preferences, open threads) that is injected ahead of the visible history. The boundary and the summary stay inspectable in the transcript.
 
 ## 4. The AI approach
