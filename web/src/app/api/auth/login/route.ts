@@ -2,11 +2,18 @@ import { NextResponse } from "next/server";
 import {
   checkCredentials,
   createSessionToken,
+  isAuthConfigured,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
 } from "@/lib/server/auth";
 
 export async function POST(req: Request) {
+  if (!isAuthConfigured()) {
+    return NextResponse.json(
+      { error: "Reviewer login is not configured. Set REVIEWER_USERNAME and REVIEWER_PASSWORD." },
+      { status: 503 },
+    );
+  }
   let body: { username?: string; password?: string };
   try {
     body = await req.json();
@@ -17,7 +24,7 @@ export async function POST(req: Request) {
   const password = String(body.password ?? "");
   if (!checkCredentials(username, password)) {
     return NextResponse.json(
-      { error: "Invalid credentials. Use the reviewer account shown on this page." },
+      { error: "Invalid credentials. Use the reviewer account provided to you." },
       { status: 401 },
     );
   }

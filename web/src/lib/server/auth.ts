@@ -2,17 +2,19 @@
  * Demo authentication for reviewers.
  *
  * The brief allows authentication as long as test credentials are provided,
- * so this is intentionally simple: one hardcoded reviewer account and a
- * signed, HttpOnly session cookie. The token is HMAC-SHA256 over an expiry
- * timestamp (Web Crypto, so the same code runs in the proxy edge runtime
- * and in Node route handlers). There is no user table — the mock dataset
- * contains nothing personal; the gate exists to demonstrate the auth flow.
+ * so this is intentionally simple: one reviewer account configured through
+ * environment variables (REVIEWER_USERNAME / REVIEWER_PASSWORD — never
+ * committed to the repository) and a signed, HttpOnly session cookie. The
+ * token is HMAC-SHA256 over an expiry timestamp (Web Crypto, so the same
+ * code runs in the proxy edge runtime and in Node route handlers). There is
+ * no user table — the mock dataset contains nothing personal; the gate
+ * exists to demonstrate the auth flow.
  */
 
-export const DEMO_CREDENTIALS = {
-  username: "reviewer",
-  password: "spaceship2026",
-} as const;
+const REVIEWER = () => ({
+  username: process.env.REVIEWER_USERNAME ?? "",
+  password: process.env.REVIEWER_PASSWORD ?? "",
+});
 
 export const SESSION_COOKIE = "spaceship_session";
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
@@ -40,7 +42,7 @@ async function hmac(message: string): Promise<string> {
 /** Token format: `<expiry-epoch-seconds>.<hmac(expiry + username)>` */
 export async function createSessionToken(now = Date.now()): Promise<string> {
   const exp = Math.floor(now / 1000) + SESSION_TTL_SECONDS;
-  const sig = await hmac(`${exp}.${DEMO_CREDENTIALS.username}`);
+  const sig = await hmac(`${exp}.${REVIEWER().username}`);
   return `${exp}.${sig}`;
 }
 
@@ -53,7 +55,7 @@ export async function verifySessionToken(
   if (dot <= 0) return false;
   const exp = Number(token.slice(0, dot));
   if (!Number.isFinite(exp) || exp * 1000 < now) return false;
-  const expected = await hmac(`${exp}.${DEMO_CREDENTIALS.username}`);
+  const expected = await hmac(`${exp}.${REVIEWER().username}`);
   const given = token.slice(dot + 1);
   if (given.length !== expected.length) return false;
   // constant-time-ish comparison
@@ -62,6 +64,14 @@ export async function verifySessionToken(
   return diff === 0;
 }
 
+/** True when both REVIEWER_USERNAME and REVIEWER_PASSWORD are set. */
+export function isAuthConfigured(): boolean {
+  const { username, password } = REVIEWER();
+  return username.length > 0 && password.length > 0;
+}
+
 export function checkCredentials(username: string, password: string): boolean {
-  return username === DEMO_CREDENTIALS.username && password === DEMO_CREDENTIALS.password;
+  if (!isAuthConfigured()) return false;
+  const expected = REVIEWER();
+  return username === expected.username && password === expected.password;
 }
