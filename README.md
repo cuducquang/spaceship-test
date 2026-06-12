@@ -6,8 +6,6 @@ Spaceship is an analytics workspace for a logistics client. It pairs a tradition
 
 **Stack:** Next.js 16, TypeScript, Supabase, Claude for the agent (Opus 4.8, Opus 4.6, Sonnet 4.6), Gemini for image generation (3 Pro Image, 3.1 Flash Image, 2.5 Flash Image), Recharts, Tailwind CSS v4
 
-**Test credentials:** username `reviewer` · password `spaceship2026` (shown on the login screen as well)
-
 ## What it covers
 
 * **Descriptive analytics.** A dashboard with five KPIs, five interactive charts, and global filters.
